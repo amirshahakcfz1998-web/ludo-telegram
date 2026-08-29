@@ -1,7 +1,8 @@
-/** Hub: انبار مرکزی داده‌ها — کاربران، آمار، امتیاز، تاریخچه، دستاوردها و صف بازی سریع */
+/** Hub: انبار مرکزی داده‌ها — کاربران، سکه، آمار، امتیاز، تاریخچه، دستاوردها و صف بازی سریع */
 import { DurableObject } from 'cloudflare:workers';
 import { computeElo, levelFromXp, tierOf, type EloInput } from '../utils/helpers';
 import { getRules } from '../config/rules';
+import { DEFAULT_COINS } from '../config/coins';
 
 export interface UserRow {
   tg_id: number;
@@ -50,6 +51,10 @@ export interface MatchInput {
   startedAt: number;
   finishedAt: number;
   players: MatchPlayerInput[];
+  /** مبلغ میز؛ فقط برای ثبت در تاریخچه */
+  stake?: number;
+  /** جایزهٔ سکه‌ای هر بازیکن: کلید = tgId به صورت رشته */
+  prizes?: Record<string, number>;
 }
 
 export interface PlayerOutcome {
@@ -59,6 +64,8 @@ export interface PlayerOutcome {
   ratingDelta: number;
   xpGained: number;
   coinsGained: number;
+  coinsPrize: number;
+  coinsBalance: number;
   level: number;
   leveledUp: boolean;
   newAchievements: string[];
@@ -85,6 +92,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { key: 'level_10', fa: 'سطح ۱۰', en: 'Level 10', icon: '🎚', check: (u) => levelFromXp(u.xp).level >= 10 },
   { key: 'rating_1500', fa: 'امتیاز ۱۵۰۰', en: 'Rating 1500', icon: '💎', check: (u) => u.best_rating >= 1500 },
   { key: 'rating_1800', fa: 'استاد بزرگ', en: 'Grandmaster', icon: '👑', check: (u) => u.best_rating >= 1800 },
+  { key: 'rich_20k', fa: 'ثروتمند', en: 'Rich', icon: '💰', check: (u) => u.coins >= 20000 },
 ];
 
 const QUEUE_TTL_MS = 120000;
@@ -112,7 +120,7 @@ export class Hub extends DurableObject {
         rating INTEGER NOT NULL DEFAULT 1200,
         best_rating INTEGER NOT NULL DEFAULT 1200,
         xp INTEGER NOT NULL DEFAULT 0,
-        coins INTEGER NOT NULL DEFAULT 100,
+        coins INTEGER NOT NULL DEFAULT ${DEFAULT_COINS},
         games INTEGER NOT NULL DEFAULT 0,
         wins INTEGER NOT NULL DEFAULT 0,
         losses INTEGER NOT NULL DEFAULT 0,
@@ -131,6 +139,26 @@ export class Hub extends DurableObject {
     this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_users_rating ON users(rating DESC);`);
 
     this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `);
+
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS coin_tx (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tg_id INTEGER NOT NULL,
+        amount INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        room_id TEXT,
+        balance INTEGER NOT NULL,
+        at INTEGER NOT NULL
+      );
+    `);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_tx_user ON coin_tx(tg_id, at DESC);`);
+
+    this.sql.exec(`
       CREATE TABLE IF NOT EXISTS matches (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         room_id TEXT NOT NULL,
@@ -139,7 +167,8 @@ export class Hub extends DurableObject {
         started_at INTEGER NOT NULL,
         finished_at INTEGER NOT NULL,
         duration_ms INTEGER NOT NULL,
-        player_count INTEGER NOT NULL
+        player_count INTEGER NOT NULL,
+        stake INTEGER NOT NULL DEFAULT 0
       );
     `);
 
@@ -184,6 +213,7 @@ export class Hub extends DurableObject {
         players INTEGER NOT NULL DEFAULT 0,
         seats INTEGER NOT NULL DEFAULT 4,
         status TEXT NOT NULL DEFAULT 'LOBBY',
+        stake INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL,
         expires_at INTEGER NOT NULL
       );
@@ -202,6 +232,38 @@ export class Hub extends DurableObject {
         joined_at INTEGER NOT NULL
       );
     `);
+
+    this.migrate();
+  }
+
+  /** تغییرهای ساختاری برای دیتابیس‌های قدیمی */
+  private migrate(): void {
+    // ستون‌های تازه روی جدول‌های موجود
+    this.addColumn('matches', 'stake', 'INTEGER NOT NULL DEFAULT 0');
+    this.addColumn('rooms', 'stake', 'INTEGER NOT NULL DEFAULT 0');
+
+    // یک‌بار: موجودی همهٔ کاربران قدیمی به ۵۰۰۰ سکه می‌رسد
+    if (!this.metaGet('coins_v2')) {
+      this.sql.exec('UPDATE users SET coins = ? WHERE coins < ?', DEFAULT_COINS, DEFAULT_COINS);
+      this.metaSet('coins_v2', '1');
+    }
+  }
+
+  private addColumn(table: string, column: string, def: string): void {
+    try {
+      this.sql.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`);
+    } catch {
+      // ستون از قبل وجود دارد
+    }
+  }
+
+  private metaGet(key: string): string | null {
+    const rows = this.sql.exec<{ value: string }>('SELECT value FROM meta WHERE key = ?', key).toArray();
+    return rows.length ? rows[0].value : null;
+  }
+
+  private metaSet(key: string, value: string): void {
+    this.sql.exec('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', key, value);
   }
 
   /* ---------------------------------------------------------------- */
@@ -234,20 +296,18 @@ export class Hub extends DurableObject {
       return this.getUser(input.tgId) as UserRow;
     }
     this.sql.exec(
-      `INSERT INTO users (tg_id, name, username, photo, lang, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (tg_id, name, username, photo, lang, coins, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       input.tgId,
       input.name,
       input.username ?? null,
       input.photo ?? null,
       input.lang ?? 'fa',
+      DEFAULT_COINS,
       now,
       now,
     );
-    for (const a of ACHIEVEMENTS) {
-      // هیچ دستاوردی در ابتدا باز نمی‌شود
-      void a;
-    }
+    this.logTx(input.tgId, DEFAULT_COINS, 'WELCOME', null, DEFAULT_COINS);
     return this.getUser(input.tgId) as UserRow;
   }
 
@@ -295,6 +355,88 @@ export class Hub extends DurableObject {
   }
 
   /* ---------------------------------------------------------------- */
+  /* کیف پول سکه                                                       */
+  /* ---------------------------------------------------------------- */
+
+  private logTx(tgId: number, amount: number, reason: string, roomId: string | null, balance: number): void {
+    this.sql.exec(
+      'INSERT INTO coin_tx (tg_id, amount, reason, room_id, balance, at) VALUES (?, ?, ?, ?, ?, ?)',
+      tgId,
+      amount,
+      reason,
+      roomId,
+      balance,
+      Date.now(),
+    );
+  }
+
+  coinsOf(tgId: number): number {
+    const u = this.getUser(tgId);
+    return u ? u.coins : 0;
+  }
+
+  canAfford(tgId: number, amount: number): boolean {
+    if (amount <= 0) return true;
+    return this.coinsOf(tgId) >= amount;
+  }
+
+  /**
+   * کم کردن ورودی میز از چند بازیکن.
+   * اگر حتی یک نفر پول کم داشته باشد، هیچ‌کس کسر نمی‌شود.
+   */
+  chargeEntry(
+    tgIds: number[],
+    amount: number,
+    roomId: string,
+  ): { ok: boolean; short: number[]; balances: Record<string, number> } {
+    const balances: Record<string, number> = {};
+    if (amount <= 0) {
+      for (const id of tgIds) balances[String(id)] = this.coinsOf(id);
+      return { ok: true, short: [], balances };
+    }
+
+    const short: number[] = [];
+    for (const id of tgIds) {
+      if (!this.canAfford(id, amount)) short.push(id);
+    }
+    if (short.length) return { ok: false, short, balances };
+
+    const now = Date.now();
+    for (const id of tgIds) {
+      this.sql.exec('UPDATE users SET coins = coins - ?, updated_at = ? WHERE tg_id = ?', amount, now, id);
+      const bal = this.coinsOf(id);
+      balances[String(id)] = bal;
+      this.logTx(id, -amount, 'ENTRY', roomId, bal);
+    }
+    return { ok: true, short: [], balances };
+  }
+
+  /** برگرداندن ورودی (وقتی بازی نیمه‌کاره لغو شود) */
+  refundEntry(tgIds: number[], amount: number, roomId: string): void {
+    if (amount <= 0) return;
+    const now = Date.now();
+    for (const id of tgIds) {
+      this.sql.exec('UPDATE users SET coins = coins + ?, updated_at = ? WHERE tg_id = ?', amount, now, id);
+      this.logTx(id, amount, 'REFUND', roomId, this.coinsOf(id));
+    }
+  }
+
+  /** افزودن سکه به یک کاربر */
+  grantCoins(tgId: number, amount: number, reason = 'GRANT', roomId: string | null = null): number {
+    if (amount === 0) return this.coinsOf(tgId);
+    this.sql.exec('UPDATE users SET coins = coins + ?, updated_at = ? WHERE tg_id = ?', amount, Date.now(), tgId);
+    const bal = this.coinsOf(tgId);
+    this.logTx(tgId, amount, reason, roomId, bal);
+    return bal;
+  }
+
+  coinHistory(tgId: number, limit = 20): Record<string, unknown>[] {
+    return this.sql
+      .exec('SELECT amount, reason, room_id, balance, at FROM coin_tx WHERE tg_id = ? ORDER BY at DESC LIMIT ?', tgId, limit)
+      .toArray() as unknown as Record<string, unknown>[];
+  }
+
+  /* ---------------------------------------------------------------- */
   /* جدول برترین‌ها و تاریخچه                                          */
   /* ---------------------------------------------------------------- */
 
@@ -315,8 +457,8 @@ export class Hub extends DurableObject {
   history(tgId: number, limit = 10): Record<string, unknown>[] {
     return this.sql
       .exec(
-        `SELECT m.id, m.mode, m.rules_id, m.finished_at, m.duration_ms, m.player_count,
-                p.rank, p.captures, p.rating_before, p.rating_after, p.xp_gained
+        `SELECT m.id, m.mode, m.rules_id, m.finished_at, m.duration_ms, m.player_count, m.stake,
+                p.rank, p.captures, p.rating_before, p.rating_after, p.xp_gained, p.coins_gained
          FROM match_players p JOIN matches m ON m.id = p.match_id
          WHERE p.tg_id = ? ORDER BY m.finished_at DESC LIMIT ?`,
         tgId,
@@ -333,10 +475,12 @@ export class Hub extends DurableObject {
     const rules = getRules(input.rulesId);
     const now = Date.now();
     const duration = Math.max(0, input.finishedAt - input.startedAt);
+    const stake = Math.max(0, Math.floor(Number(input.stake ?? 0)));
+    const prizes = input.prizes ?? {};
 
     this.sql.exec(
-      `INSERT INTO matches (room_id, mode, rules_id, started_at, finished_at, duration_ms, player_count)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO matches (room_id, mode, rules_id, started_at, finished_at, duration_ms, player_count, stake)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       input.roomId,
       input.mode,
       input.rulesId,
@@ -344,19 +488,18 @@ export class Hub extends DurableObject {
       input.finishedAt,
       duration,
       input.players.length,
+      stake,
     );
     const matchId = this.sql.exec<{ id: number }>('SELECT last_insert_rowid() AS id').one().id;
 
     const humans = input.players.filter((p) => !p.isAI && p.tgId !== null);
     const beatAI = input.players.some((p) => p.isAI);
 
-    // امتیاز ELO فقط وقتی حداقل دو انسان بازی کرده باشند
     const eloInputs: EloInput[] = humans.map((p) => {
       const u = this.getUser(p.tgId as number);
       return { id: String(p.tgId), rating: u?.rating ?? rules.elo.base, rank: p.rank };
     });
-    const eloOut =
-      eloInputs.length >= 2 ? computeElo(eloInputs, rules.elo.kFactor, rules.elo.min) : {};
+    const eloOut = eloInputs.length >= 2 ? computeElo(eloInputs, rules.elo.kFactor, rules.elo.min) : {};
 
     const outcomes: PlayerOutcome[] = [];
 
@@ -386,7 +529,10 @@ export class Hub extends DurableObject {
         (won ? rules.rewards.xpWin : rules.rewards.xpLoss) +
         p.captures * rules.rewards.xpPerCapture +
         p.finished * rules.rewards.xpPerTokenHome;
-      const coinsGained = won ? rules.rewards.coinsWin : rules.rewards.coinsLoss;
+
+      const prize = Math.max(0, Math.floor(Number(prizes[String(tgId)] ?? 0)));
+      const bonus = won ? rules.rewards.coinsWin : rules.rewards.coinsLoss;
+      const coinsGained = prize + bonus;
 
       const beforeLevel = levelFromXp(u.xp).level;
       const newXp = u.xp + xpGained;
@@ -418,6 +564,11 @@ export class Hub extends DurableObject {
         tgId,
       );
 
+      const balance = this.coinsOf(tgId);
+      if (coinsGained !== 0) {
+        this.logTx(tgId, coinsGained, prize > 0 ? 'PRIZE' : 'REWARD', input.roomId, balance);
+      }
+
       this.sql.exec(
         `INSERT INTO match_players (match_id, tg_id, name, is_ai, ai_level, seat, rank, captures,
                                     lost_tokens, finished, rating_before, rating_after, xp_gained, coins_gained)
@@ -445,6 +596,8 @@ export class Hub extends DurableObject {
         ratingDelta: elo.delta,
         xpGained,
         coinsGained,
+        coinsPrize: prize,
+        coinsBalance: balance,
         level: afterLevel,
         leveledUp: afterLevel > beforeLevel,
         newAchievements: unlocked,
@@ -482,7 +635,6 @@ export class Hub extends DurableObject {
     return fresh;
   }
 
-  /** نگه‌داشتن حجم داده در حد معقول */
   private pruneMatches(): void {
     const row = this.sql.exec<{ c: number }>('SELECT COUNT(*) AS c FROM matches').one();
     if (row.c <= 20000) return;
@@ -491,6 +643,7 @@ export class Hub extends DurableObject {
         (SELECT id FROM matches ORDER BY finished_at ASC LIMIT 2000)`,
     );
     this.sql.exec(`DELETE FROM matches WHERE id IN (SELECT id FROM matches ORDER BY finished_at ASC LIMIT 2000)`);
+    this.sql.exec(`DELETE FROM coin_tx WHERE at < ?`, Date.now() - 2592000000);
   }
 
   /* ---------------------------------------------------------------- */
@@ -506,11 +659,12 @@ export class Hub extends DurableObject {
     hostId: string;
     seats: number;
     ttlMs: number;
+    stake?: number;
   }): void {
     const now = Date.now();
     this.sql.exec(
-      `INSERT OR REPLACE INTO rooms (room_id, join_code, mode, visibility, rules_id, host_id, players, seats, status, created_at, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'LOBBY', ?, ?)`,
+      `INSERT OR REPLACE INTO rooms (room_id, join_code, mode, visibility, rules_id, host_id, players, seats, status, stake, created_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'LOBBY', ?, ?, ?)`,
       r.roomId,
       r.joinCode,
       r.mode,
@@ -518,6 +672,7 @@ export class Hub extends DurableObject {
       r.rulesId,
       r.hostId,
       r.seats,
+      Math.max(0, Math.floor(Number(r.stake ?? 0))),
       now,
       now + r.ttlMs,
     );
