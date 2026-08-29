@@ -75,7 +75,7 @@ export default {
 
     /* ---------------- وب‌هوک تلگرام ---------------- */
     if (path === '/webhook' && request.method === 'POST') {
-      if (!verifyWebhookSecret(request, env.WEBHOOK_SECRET)) return fail('FORBIDDEN', 403);
+      if (!verifyWebhookSecret(request, (env.WEBHOOK_SECRET ?? '').trim())) return fail('FORBIDDEN', 403);
       const update = await readJson<TgUpdate>(request);
       if (!update) return ok();
       const botCtx = makeContext(env, origin);
@@ -85,10 +85,16 @@ export default {
 
     /* ---------------- نصب وب‌هوک ---------------- */
     if (path === '/setup') {
-      const key = url.searchParams.get('key') ?? '';
-      if (!env.WEBHOOK_SECRET || key !== env.WEBHOOK_SECRET) return fail('FORBIDDEN', 403);
+      const key = (url.searchParams.get('key') ?? '').trim();
+      const want = (env.WEBHOOK_SECRET ?? '').trim();
+      if (!want || key !== want) {
+        return json(
+          { ok: false, error: 'FORBIDDEN', secretLen: want.length, keyLen: key.length },
+          403,
+        );
+      }
       const api = new TelegramAPI(env.TELEGRAM_BOT_TOKEN);
-      const hookRes = await api.setWebhook(`${origin}/webhook`, env.WEBHOOK_SECRET);
+      const hookRes = await api.setWebhook(`${origin}/webhook`, want);
       await api.setMyCommands(BOT_COMMANDS_EN);
       await api.setMyCommands(BOT_COMMANDS_FA, 'fa');
       const me = await api.getMe();
@@ -102,7 +108,15 @@ export default {
     }
 
     if (path === '/health') {
-      return json({ ok: true, time: Date.now(), bot: env.BOT_USERNAME });
+      return json({
+        ok: true,
+        time: Date.now(),
+        bot: env.BOT_USERNAME ?? null,
+        hasToken: !!env.TELEGRAM_BOT_TOKEN,
+        tokenLen: (env.TELEGRAM_BOT_TOKEN ?? '').length,
+        hasSecret: !!env.WEBHOOK_SECRET,
+        secretLen: (env.WEBHOOK_SECRET ?? '').length,
+      });
     }
 
     /* ---------------- اتصال زندهٔ بازی ---------------- */
