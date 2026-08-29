@@ -30,10 +30,9 @@
   </div>
 </div>
 
-<!-- ================= منوی اصلی (لابی حرفه‌ای) ================= -->
+<!-- ================= منوی اصلی (لابی) ================= -->
 <div id="menuScreen" class="screen ls hidden">
 
-  <!-- نوار بالا -->
   <header class="ls-top">
     <div class="ls-player">
       <div class="ls-ava">
@@ -47,8 +46,8 @@
     </div>
 
     <div class="ls-wallet">
+      <div class="ls-pill coin"><i>🪙</i><b id="menuCoins">5000</b></div>
       <div class="ls-pill gold"><i>🏆</i><b id="menuRating">1200</b></div>
-      <div class="ls-pill green"><i>🥇</i><b id="statWins">0</b></div>
     </div>
 
     <button class="ls-gear" id="btnSettings">⚙️</button>
@@ -56,34 +55,20 @@
 
   <div class="ls-body">
 
-    <!-- ریل چپ و راست -->
-    <div class="ls-rail left">
-      <button class="ls-rail-btn" data-act="board"><span class="ic">🏆</span><small>برترین‌ها</small></button>
-      <button class="ls-rail-btn" data-act="profile"><span class="ic">📊</span><small>آمار من</small></button>
-    </div>
-
-    <div class="ls-rail right">
-      <button class="ls-rail-btn" data-act="join"><span class="ic">🔑</span><small>کد اتاق</small></button>
-      <button class="ls-rail-btn" data-act="ai"><span class="ic">🤖</span><small>تمرین</small></button>
-    </div>
-
-    <!-- بنر -->
-    <div class="ls-banner">
+    <div class="ls-banner wide">
       <div class="ls-banner-glow"></div>
       <div class="ls-banner-txt">
         <b>مسیر ستاره‌ها</b>
-        <span>ببر، امتیاز بگیر، بالا برو</span>
+        <span>ببر، سکه بگیر، بالا برو</span>
       </div>
       <div class="ls-banner-ico">🎁</div>
     </div>
 
-    <!-- لوگوی پشت‌زمینه -->
     <div class="ls-logo">
       <span>LUDO</span>
       <span>STAR</span>
     </div>
 
-    <!-- دو کارت اصلی -->
     <div class="ls-modes">
       <button class="ls-mode orange" data-act="create2">
         <div class="ls-mode-num">۲</div>
@@ -103,7 +88,6 @@
       </button>
     </div>
 
-    <!-- سه کارت کوچک -->
     <div class="ls-subs">
       <button class="ls-sub" data-act="join">
         <div class="ls-sub-art teal"><span>🔒</span></div>
@@ -119,15 +103,14 @@
       </button>
     </div>
 
-    <!-- آمار کوچک -->
     <div class="ls-stats">
-      <div><b id="statGames">0</b><small>بازی</small></div>
+      <div><b id="statWins">0</b><small>برد</small></div>
       <div><b id="statRate">0٪</b><small>درصد برد</small></div>
+      <div><b id="statGames">0</b><small>بازی</small></div>
     </div>
 
   </div>
 
-  <!-- نوار پایین -->
   <nav class="ls-nav">
     <button class="ls-nav-btn" data-act="board"><span>🏆</span><small>برترین‌ها</small></button>
     <button class="ls-nav-btn" data-act="join"><span>🔑</span><small>ورود با کد</small></button>
@@ -237,7 +220,6 @@
     <button class="icon-btn chat-toggle" id="btnChat">💬</button>
   </div>
 
-  <!-- چت -->
   <div class="chat-panel hidden" id="chatPanel">
     <div class="chat-head">
       <b>گفتگو</b>
@@ -299,7 +281,6 @@
   </div>
 </div>
 
-<!-- پیام شناور -->
 <div id="toast" class="toast hidden"></div>
 
 <script src="/board.js"></script>
