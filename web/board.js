@@ -44,12 +44,11 @@
     BLUE: [{ x: 1.5, y: 10.5 }, { x: 3.5, y: 10.5 }, { x: 1.5, y: 12.5 }, { x: 3.5, y: 12.5 }]
   };
 
-  /** ناحیهٔ پایگاه هر رنگ روی گرید ۱۵×۱۵ */
   var BASE_AREA = {
-    RED: { col: 1, row: 1 },
-    GREEN: { col: 10, row: 1 },
-    YELLOW: { col: 10, row: 10 },
-    BLUE: { col: 1, row: 10 }
+    RED: { col: 0, row: 0 },
+    GREEN: { col: 9, row: 0 },
+    YELLOW: { col: 9, row: 9 },
+    BLUE: { col: 0, row: 9 }
   };
 
   var CENTER = { x: 7, y: 7 };
@@ -66,7 +65,6 @@
 
   function isSafeAbs(abs) { return SAFE_CELLS.indexOf(abs) !== -1; }
 
-  /** مختصات گرید یک مهره */
   function cellOf(color, p, tokenIndex) {
     if (isBase(p)) return BASE_SLOTS[color][tokenIndex] || BASE_SLOTS[color][0];
     if (isFinished(p)) return finishSlot(color);
@@ -74,78 +72,82 @@
     return TRACK_COORDS[toAbsolute(color, p)];
   }
 
-  /** مهره‌های تمام‌شده کمی کنار هم در مرکز می‌نشینند */
   function finishSlot(color) {
-    var d = 0.42;
+    var d = 0.4;
     if (color === 'RED') return { x: CENTER.x - d, y: CENTER.y };
     if (color === 'GREEN') return { x: CENTER.x, y: CENTER.y - d };
     if (color === 'YELLOW') return { x: CENTER.x + d, y: CENTER.y };
     return { x: CENTER.x, y: CENTER.y + d };
   }
 
-  /** تبدیل مختصات گرید به درصد برای چیدن مهره روی تخته */
   function toPercent(cell) {
     var unit = 100 / GRID;
-    return {
-      left: (cell.x + 0.5) * unit,
-      top: (cell.y + 0.5) * unit
-    };
+    return { left: (cell.x + 0.5) * unit, top: (cell.y + 0.5) * unit };
   }
 
-  /** ساخت خانه‌های تخته یک‌بار در شروع */
   function renderGrid(container) {
+    if (!container) return;
     container.innerHTML = '';
-    var i, c;
 
-    var map = {}; // "x,y" -> className
+    var map = {};
     function mark(x, y, cls) {
       var k = x + ',' + y;
       map[k] = (map[k] ? map[k] + ' ' : '') + cls;
     }
 
+    var i, c, ci, color, hc;
+
     for (i = 0; i < TRACK_COORDS.length; i++) {
       c = TRACK_COORDS[i];
       mark(c.x, c.y, 'path');
-      if (isSafeAbs(i)) mark(c.x, c.y, 'safe');
+      if (isSafeAbs(i) && START_CELLS.indexOf(i) === -1) mark(c.x, c.y, 'safe');
     }
 
     for (i = 0; i < START_CELLS.length; i++) {
       c = TRACK_COORDS[START_CELLS[i]];
-      mark(c.x, c.y, 'start-' + COLORS[i]);
+      mark(c.x, c.y, 'start start-' + COLORS[i]);
     }
 
-    for (var ci = 0; ci < COLORS.length; ci++) {
-      var color = COLORS[ci];
-      var hc = HOME_COORDS[color];
-      for (i = 0; i < hc.length; i++) mark(hc[i].x, hc[i].y, 'home-' + color);
+    for (ci = 0; ci < COLORS.length; ci++) {
+      color = COLORS[ci];
+      hc = HOME_COORDS[color];
+      for (i = 0; i < hc.length; i++) mark(hc[i].x, hc[i].y, 'home home-' + color);
     }
 
     var frag = document.createDocumentFragment();
 
-    // چهار پایگاه به‌صورت بلوک ۶×۶
-    for (var bi = 0; bi < COLORS.length; bi++) {
-      var col = COLORS[bi];
-      var area = BASE_AREA[col];
-      var base = document.createElement('div');
-      base.className = 'base ' + col;
-      base.style.gridColumn = (area.col + 1) + ' / span 5';
-      base.style.gridRow = (area.row + 1) + ' / span 5';
-      frag.appendChild(base);
-    }
-
-    // مرکز تخته
     var center = document.createElement('div');
     center.className = 'center-home';
     center.style.gridColumn = '7 / span 3';
     center.style.gridRow = '7 / span 3';
-    center.textContent = '🏆';
+    center.innerHTML =
+      '<div class="tri t-RED"></div><div class="tri t-GREEN"></div>' +
+      '<div class="tri t-YELLOW"></div><div class="tri t-BLUE"></div>' +
+      '<div class="crown">🏆</div>';
     frag.appendChild(center);
 
-    // بقیهٔ خانه‌ها
+    for (ci = 0; ci < COLORS.length; ci++) {
+      color = COLORS[ci];
+      var area = BASE_AREA[color];
+      var base = document.createElement('div');
+      base.className = 'base ' + color;
+      base.style.gridColumn = (area.col + 1) + ' / span 6';
+      base.style.gridRow = (area.row + 1) + ' / span 6';
+
+      var yard = document.createElement('div');
+      yard.className = 'base-yard';
+      for (var s = 0; s < 4; s++) {
+        var slot = document.createElement('div');
+        slot.className = 'base-slot ' + color;
+        yard.appendChild(slot);
+      }
+      base.appendChild(yard);
+      frag.appendChild(base);
+    }
+
     for (var y = 0; y < GRID; y++) {
       for (var x = 0; x < GRID; x++) {
-        var key = x + ',' + y;
-        var cls = map[key];
+        var cls = map[x + ',' + y];
         if (!cls) continue;
         var el = document.createElement('div');
         el.className = 'cell ' + cls;
@@ -158,12 +160,11 @@
     container.appendChild(frag);
   }
 
-  /** پخش کردن مهره‌های هم‌خانه تا روی هم نیفتند */
   function spreadOffset(index, total) {
     if (total <= 1) return { dx: 0, dy: 0 };
-    var step = 1.1;
+    var step = 1.05;
     var start = -((total - 1) * step) / 2;
-    return { dx: start + index * step, dy: index % 2 === 0 ? -0.5 : 0.5 };
+    return { dx: start + index * step, dy: index % 2 === 0 ? -0.45 : 0.45 };
   }
 
   global.LudoBoard = {
