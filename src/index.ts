@@ -50,6 +50,19 @@ async function roomCall<T = Record<string, unknown>>(
   }
 }
 
+/** گرفتن فایل index.html از فضای فایل‌های ثابت، با دنبال کردن ریدایرکت */
+async function loadMiniApp(env: Env, origin: string): Promise<Response> {
+  let res = await env.ASSETS.fetch(new Request(`${origin}/`, { method: 'GET' }));
+  let hops = 0;
+  while (res.status >= 300 && res.status < 400 && hops < 3) {
+    const loc = res.headers.get('Location');
+    if (!loc) break;
+    res = await env.ASSETS.fetch(new Request(new URL(loc, origin).toString(), { method: 'GET' }));
+    hops++;
+  }
+  return res;
+}
+
 /* ------------------------------------------------------------------ */
 /* احراز هویت مینی‌اپ                                                  */
 /* ------------------------------------------------------------------ */
@@ -108,14 +121,15 @@ export default {
     }
 
     if (path === '/health') {
+      const probe = await loadMiniApp(env, origin);
       return json({
         ok: true,
         time: Date.now(),
         bot: env.BOT_USERNAME ?? null,
         hasToken: !!env.TELEGRAM_BOT_TOKEN,
-        tokenLen: (env.TELEGRAM_BOT_TOKEN ?? '').length,
         hasSecret: !!env.WEBHOOK_SECRET,
         secretLen: (env.WEBHOOK_SECRET ?? '').length,
+        appStatus: probe.status,
       });
     }
 
@@ -286,11 +300,11 @@ export default {
       }
     }
 
-    /* ---------------- مینی‌اپ و فایل‌های ثابت ---------------- */
+    /* ---------------- مینی‌اپ ---------------- */
     if (path === '/app' || path === '/app/') {
-      const res = await env.ASSETS.fetch(new Request(`${origin}/index.html`, request));
+      const res = await loadMiniApp(env, origin);
       return new Response(res.body, {
-        status: res.status,
+        status: res.status === 200 ? 200 : res.status,
         headers: {
           'Content-Type': 'text/html; charset=utf-8',
           'Cache-Control': 'no-store',
