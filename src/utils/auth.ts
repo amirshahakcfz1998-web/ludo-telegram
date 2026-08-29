@@ -54,7 +54,8 @@ export async function verifyInitData(
   maxAgeSec = 86400,
 ): Promise<InitDataResult> {
   if (!initData) return { ok: false, error: 'EMPTY_INIT_DATA' };
-  if (!botToken) return { ok: false, error: 'NO_BOT_TOKEN' };
+  const token = (botToken ?? '').trim();
+  if (!token) return { ok: false, error: 'NO_BOT_TOKEN' };
 
   let params: URLSearchParams;
   try {
@@ -66,20 +67,31 @@ export async function verifyInitData(
   const hash = params.get('hash');
   if (!hash) return { ok: false, error: 'NO_HASH' };
 
-  const pairs: string[] = [];
+  // حالت استاندارد: همهٔ فیلدها به‌جز hash
+  const withSig: string[] = [];
+  // حالت جایگزین برای نسخه‌های قدیمی‌تر: بدون signature
+  const withoutSig: string[] = [];
+
   for (const [k, v] of params.entries()) {
-    if (k === 'hash' || k === 'signature') continue;
-    pairs.push(`${k}=${v}`);
+    if (k === 'hash') continue;
+    withSig.push(`${k}=${v}`);
+    if (k !== 'signature') withoutSig.push(`${k}=${v}`);
   }
-  pairs.sort();
-  const dataCheckString = pairs.join('\n');
+  withSig.sort();
+  withoutSig.sort();
 
-  const secretKey = await hmac(encoder.encode('WebAppData'), botToken);
-  const computed = toHex(await hmac(secretKey, dataCheckString));
+  const secretKey = await hmac(encoder.encode('WebAppData'), token);
+  const expected = hash.toLowerCase();
 
-  if (!timingSafeEqual(computed, hash.toLowerCase())) {
-    return { ok: false, error: 'BAD_SIGNATURE' };
+  const tryA = toHex(await hmac(secretKey, withSig.join('\n')));
+  let valid = timingSafeEqual(tryA, expected);
+
+  if (!valid && withoutSig.length !== withSig.length) {
+    const tryB = toHex(await hmac(secretKey, withoutSig.join('\n')));
+    valid = timingSafeEqual(tryB, expected);
   }
+
+  if (!valid) return { ok: false, error: 'BAD_SIGNATURE' };
 
   const authDate = Number(params.get('auth_date') ?? 0);
   if (!authDate) return { ok: false, error: 'NO_AUTH_DATE' };
@@ -109,9 +121,10 @@ export async function verifyInitData(
 
 /** بررسی هدر مخفی وب‌هوک تلگرام */
 export function verifyWebhookSecret(request: Request, expected: string | undefined): boolean {
-  if (!expected) return true;
-  const got = request.headers.get('X-Telegram-Bot-Api-Secret-Token') ?? '';
-  return timingSafeEqual(got, expected);
+  const want = (expected ?? '').trim();
+  if (!want) return true;
+  const got = (request.headers.get('X-Telegram-Bot-Api-Secret-Token') ?? '').trim();
+  return timingSafeEqual(got, want);
 }
 
 /** نام قابل نمایش کاربر تلگرام */
