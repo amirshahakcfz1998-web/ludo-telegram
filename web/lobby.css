@@ -1,37 +1,32 @@
 /* ============================================================
-   لودو استار — لابی حرفه‌ای (سبک Ludo Star)
+   لودو استار — لابی حرفه‌ای
    ============================================================ */
 
 .ls {
   position: fixed; inset: 0;
   display: flex; flex-direction: column;
-  overflow: hidden;
-  padding: 0;
+  overflow: hidden; padding: 0;
   background:
     radial-gradient(80vw 46vh at 50% -6%, #7a1d86, transparent 70%),
     radial-gradient(70vw 40vh at 50% 104%, #4b0f6b, transparent 68%),
     linear-gradient(180deg, #5b1268 0%, #3d0a52 45%, #2a0740 100%);
 }
 
-/* ذرات نور پس‌زمینه */
 .ls::before {
-  content: '';
-  position: absolute; inset: 0; pointer-events: none;
+  content: ''; position: absolute; inset: 0; pointer-events: none;
   background-image:
     radial-gradient(circle at 14% 18%, rgba(255,255,255,.07) 0 3px, transparent 4px),
     radial-gradient(circle at 78% 12%, rgba(255,255,255,.06) 0 4px, transparent 5px),
     radial-gradient(circle at 30% 72%, rgba(255,255,255,.05) 0 3px, transparent 4px),
-    radial-gradient(circle at 88% 62%, rgba(255,255,255,.07) 0 3px, transparent 4px),
-    radial-gradient(circle at 55% 40%, rgba(255,255,255,.04) 0 5px, transparent 6px);
+    radial-gradient(circle at 88% 62%, rgba(255,255,255,.07) 0 3px, transparent 4px);
   background-size: 260px 260px;
   animation: lsDrift 24s linear infinite;
 }
-@keyframes lsDrift { to { background-position: 260px 260px, -260px 200px, 200px -260px, -200px -200px, 260px 0; } }
+@keyframes lsDrift { to { background-position: 260px 260px, -260px 200px, 200px -260px, -200px -200px; } }
 
-/* خنثی‌سازی استایل قدیمی tile داخل لابی */
 .ls .tile {
   background: none; border: 0; box-shadow: none;
-  padding: 0; margin: 0; min-height: 0; border-radius: inherit;
+  padding: 0; margin: 0; min-height: 0;
 }
 
 /* ---------------- نوار بالا ---------------- */
@@ -44,26 +39,21 @@
 
 .ls-player {
   display: flex; align-items: center; gap: 8px;
-  padding: 4px 12px 4px 4px;
-  border-radius: 999px;
+  padding: 4px 12px 4px 4px; border-radius: 999px;
   background: linear-gradient(180deg, #6b1b7d, #430f5c);
   box-shadow: inset 0 2px 0 rgba(255,255,255,.22), 0 4px 10px rgba(0,0,0,.45);
   border: 2px solid #ffb43c;
 }
 .ls-ava {
-  width: 44px; height: 44px; border-radius: 50%;
-  padding: 3px;
+  width: 44px; height: 44px; border-radius: 50%; padding: 3px; flex: none;
   background: conic-gradient(from 210deg, #ffd85c, #ff9c1a, #ffe89a, #ff9c1a, #ffd85c);
   box-shadow: 0 3px 8px rgba(0,0,0,.5);
-  flex: none;
 }
 .ls-ava .avatar {
-  width: 100%; height: 100%; margin: 0;
+  width: 100%; height: 100%; margin: 0; border: 0;
   border-radius: 50%; overflow: hidden;
   display: grid; place-items: center;
-  font-size: 20px;
-  background: #2c0a3f;
-  border: 0;
+  font-size: 20px; background: #2c0a3f;
 }
 .ls-ava .avatar img { width: 100%; height: 100%; object-fit: cover; }
 
@@ -94,27 +84,25 @@
 .ls-wallet { display: flex; flex-direction: column; gap: 5px; margin-inline-start: auto; }
 .ls-pill {
   display: flex; align-items: center; gap: 6px;
-  padding: 3px 10px 3px 4px;
-  border-radius: 999px;
+  padding: 3px 10px 3px 4px; border-radius: 999px;
   font-size: 12px; font-weight: 800; color: #fff;
   background: linear-gradient(180deg, #55135f, #35093f);
   border: 1.5px solid rgba(255,255,255,.2);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 3px 8px rgba(0,0,0,.4);
 }
 .ls-pill i {
-  width: 20px; height: 20px; border-radius: 50%;
-  display: grid; place-items: center; font-size: 12px; font-style: normal;
+  width: 20px; height: 20px; border-radius: 50%; font-style: normal;
+  display: grid; place-items: center; font-size: 12px;
   background: radial-gradient(circle at 35% 30%, #fff3b0, #f0a51a);
   box-shadow: 0 1px 3px rgba(0,0,0,.5);
 }
-.ls-pill.green i { background: radial-gradient(circle at 35% 30%, #b6ffc9, #23b559); }
+.ls-pill.coin i { background: radial-gradient(circle at 35% 30%, #fff6c0, #e8a800); }
 
 .ls-gear {
-  width: 38px; height: 38px; flex: none;
+  width: 38px; height: 38px; flex: none; color: #fff;
   border: 0; border-radius: 12px; font-size: 18px;
   background: linear-gradient(180deg, #7a2090, #4d0d63);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 3px 8px rgba(0,0,0,.45);
-  color: #fff;
 }
 .ls-gear:active { transform: translateY(2px); }
 
@@ -129,39 +117,15 @@
 }
 .ls-body::-webkit-scrollbar { width: 0; }
 
-/* ریل کناری */
-.ls-rail {
-  position: absolute; top: 118px; z-index: 4;
-  display: flex; flex-direction: column; gap: 10px;
-}
-.ls-rail.left { inset-inline-start: 6px; }
-.ls-rail.right { inset-inline-end: 6px; }
+.ls-rail { display: none !important; }
 
-.ls-rail-btn {
-  width: 56px; padding: 6px 2px 4px;
-  border: 2px solid #ffbe45; border-radius: 14px;
-  background: linear-gradient(180deg, #8b25a3, #56106b);
-  box-shadow: inset 0 2px 0 rgba(255,255,255,.25), 0 5px 12px rgba(0,0,0,.45);
-  color: #fff; display: grid; gap: 2px; justify-items: center;
-}
-.ls-rail-btn .ic {
-  font-size: 21px;
-  filter: drop-shadow(0 2px 3px rgba(0,0,0,.5));
-}
-.ls-rail-btn small { font-size: 8.5px; font-weight: 700; opacity: .95; }
-.ls-rail-btn:active { transform: translateY(2px) scale(.97); }
-
-/* بنر */
 .ls-banner {
-  position: relative;
-  margin: 4px 62px 0;
-  padding: 10px 14px;
-  border-radius: 16px;
+  position: relative; margin: 4px; padding: 10px 14px;
+  border-radius: 16px; overflow: hidden;
   display: flex; align-items: center; gap: 10px;
   border: 2px solid #ffc247;
   background: linear-gradient(180deg, #23c07a, #128a55);
   box-shadow: inset 0 2px 0 rgba(255,255,255,.3), 0 6px 16px rgba(0,0,0,.45);
-  overflow: hidden;
 }
 .ls-banner-glow {
   position: absolute; top: 0; bottom: 0; width: 45%;
@@ -170,21 +134,14 @@
 }
 @keyframes lsShine { 0% { inset-inline-start: -50%; } 60%, 100% { inset-inline-start: 115%; } }
 .ls-banner-txt { flex: 1; line-height: 1.35; }
-.ls-banner-txt b {
-  display: block; font-size: 14px; color: #fff;
-  text-shadow: 0 2px 0 rgba(0,0,0,.35);
-}
+.ls-banner-txt b { display: block; font-size: 14px; color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.35); }
 .ls-banner-txt span { font-size: 10.5px; color: rgba(255,255,255,.9); }
 .ls-banner-ico { font-size: 26px; filter: drop-shadow(0 3px 4px rgba(0,0,0,.5)); }
 
-/* لوگوی کم‌رنگ */
 .ls-logo {
-  text-align: center; margin: 2px 0 -4px;
-  pointer-events: none;
-  font-weight: 900; letter-spacing: 4px;
-  line-height: .92;
+  text-align: center; margin: 2px 0 -4px; pointer-events: none;
+  font-weight: 900; letter-spacing: 4px; line-height: .92;
   color: rgba(255,255,255,.07);
-  text-shadow: 0 2px 0 rgba(0,0,0,.12);
 }
 .ls-logo span { display: block; }
 .ls-logo span:first-child { font-size: 34px; }
@@ -192,18 +149,12 @@
 
 /* ---------------- کارت‌های اصلی ---------------- */
 
-.ls-modes {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
-  margin: 0 4px;
-}
+.ls-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 4px; }
 
 .ls-mode {
-  position: relative;
-  aspect-ratio: 1 / 1.02;
-  border: 0; border-radius: 20px;
-  padding: 8px;
+  position: relative; aspect-ratio: 1 / 1.02;
+  border: 0; border-radius: 20px; padding: 8px; overflow: hidden;
   display: flex; flex-direction: column; justify-content: flex-end;
-  overflow: hidden;
   box-shadow:
     inset 0 3px 0 rgba(255,255,255,.35),
     inset 0 -6px 14px rgba(0,0,0,.3),
@@ -211,9 +162,7 @@
   transition: transform .12s;
 }
 .ls-mode:active { transform: translateY(3px) scale(.98); }
-
 .ls-mode.orange { background: linear-gradient(180deg, #ffb43c, #f07c15 60%, #c85c05); }
-.ls-mode.purple { background: linear-gradient(180deg, #a濃, #7b3ddb 0%, #5a23b5 60%, #3f1590); }
 .ls-mode.purple { background: linear-gradient(180deg, #8a4ce8, #5f27bd 60%, #421694); }
 
 .ls-mode::after {
@@ -225,14 +174,12 @@
 .ls-mode-num {
   position: absolute; top: 6px; inset-inline-start: 50%;
   transform: translateX(-50%);
-  font-size: 58px; font-weight: 900; line-height: 1;
-  color: #fff;
-  text-shadow:
-    0 3px 0 #b23c00, 0 5px 0 rgba(0,0,0,.35),
-    0 8px 18px rgba(0,0,0,.5);
-  -webkit-text-stroke: 2px rgba(255,255,255,.6);
+  font-size: 58px; font-weight: 900; line-height: 1; color: #fff;
+  text-shadow: 0 3px 0 #b23c00, 0 5px 0 rgba(0,0,0,.35), 0 8px 18px rgba(0,0,0,.5);
 }
-.ls-mode.purple .ls-mode-num { text-shadow: 0 3px 0 #2d0d6e, 0 5px 0 rgba(0,0,0,.35), 0 8px 18px rgba(0,0,0,.5); }
+.ls-mode.purple .ls-mode-num {
+  text-shadow: 0 3px 0 #2d0d6e, 0 5px 0 rgba(0,0,0,.35), 0 8px 18px rgba(0,0,0,.5);
+}
 
 .ls-mode-art {
   position: absolute; inset-inline: 8px; bottom: 34px; height: 42%;
@@ -244,8 +191,6 @@
   animation: lsBob 2.4s ease-in-out infinite;
 }
 .ls-mode-art .d.red { background: radial-gradient(circle at 34% 28%, #ff8f9c, #e01f38); }
-.ls-mode-art .d.green { background: radial-gradient(circle at 34% 28%, #96f2b8, #17a css); }
-.ls-mode-art .d.green { background: radial-gradient(circle at 34% 28%, #96f2b8, #14a css); }
 .ls-mode-art .d.green { background: radial-gradient(circle at 34% 28%, #96f2b8, #17a54e); }
 .ls-mode-art .d.yellow { background: radial-gradient(circle at 34% 28%, #ffeaa0, #f0ab08); }
 .ls-mode-art .d.blue { background: radial-gradient(circle at 34% 28%, #a9d6ff, #1f76d8); }
@@ -262,11 +207,9 @@
 @keyframes lsSpin { 0%,100% { transform: rotate(-12deg); } 50% { transform: rotate(12deg); } }
 
 .ls-mode-label {
-  position: relative; z-index: 2;
-  text-align: center;
+  position: relative; z-index: 2; text-align: center;
   font-size: 13px; font-weight: 800; color: #fff;
-  padding: 5px 0;
-  border-radius: 12px;
+  padding: 5px 0; border-radius: 12px;
   background: rgba(0,0,0,.3);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.2);
   text-shadow: 0 2px 3px rgba(0,0,0,.6);
@@ -274,13 +217,9 @@
 
 /* ---------------- سه کارت کوچک ---------------- */
 
-.ls-subs {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px;
-  margin: 0 4px;
-}
+.ls-subs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin: 0 4px; }
 .ls-sub {
-  border: 0; border-radius: 16px;
-  padding: 8px 4px 6px;
+  border: 0; border-radius: 16px; padding: 8px 4px 6px;
   display: grid; gap: 5px; justify-items: center;
   background: linear-gradient(180deg, #7b2a94, #4a1062);
   box-shadow: inset 0 2px 0 rgba(255,255,255,.22), 0 6px 14px rgba(0,0,0,.42);
@@ -295,20 +234,13 @@
 .ls-sub-art.teal { background: linear-gradient(180deg, #34d1b0, #109c81); }
 .ls-sub-art.pink { background: linear-gradient(180deg, #ff7ab8, #d9298a); }
 .ls-sub-art.blue { background: linear-gradient(180deg, #58a8ff, #1f6ad8); }
-.ls-sub small {
-  font-size: 10px; font-weight: 700; color: #fff;
-  text-shadow: 0 1px 2px rgba(0,0,0,.6);
-}
+.ls-sub small { font-size: 10px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
 
 /* ---------------- آمار ---------------- */
 
-.ls-stats {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 9px;
-  margin: 0 4px 6px;
-}
+.ls-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin: 0 4px 6px; }
 .ls-stats div {
-  border-radius: 13px; padding: 7px 4px;
-  text-align: center;
+  border-radius: 13px; padding: 7px 4px; text-align: center;
   background: rgba(255,255,255,.07);
   border: 1px solid rgba(255,255,255,.14);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.16);
@@ -320,33 +252,27 @@
 
 .ls-nav {
   position: relative; z-index: 3;
-  display: grid; grid-template-columns: repeat(4, 1fr);
-  align-items: end;
+  display: grid; grid-template-columns: repeat(4, 1fr); align-items: end;
   padding: 6px 8px calc(env(safe-area-inset-bottom) + 6px);
   background: linear-gradient(180deg, #6a1a7c, #3c0a52);
   box-shadow: 0 -4px 18px rgba(0,0,0,.5), inset 0 2px 0 rgba(255,255,255,.16);
 }
 .ls-nav-btn {
   border: 0; background: none; color: rgba(255,255,255,.8);
-  display: grid; gap: 2px; justify-items: center;
-  padding: 5px 0;
+  display: grid; gap: 2px; justify-items: center; padding: 5px 0;
 }
 .ls-nav-btn span { font-size: 20px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
 .ls-nav-btn small { font-size: 9.5px; font-weight: 700; }
 .ls-nav-btn:active { transform: translateY(2px); }
 
 .ls-nav-btn.home {
-  margin-top: -22px;
+  margin-top: -22px; padding: 8px 0 6px; color: #fff;
   border-radius: 18px 18px 14px 14px;
-  padding: 8px 0 6px;
-  color: #fff;
   background: linear-gradient(180deg, #ffc247, #f0870f);
   border: 2px solid #ffe08a;
   box-shadow: 0 6px 14px rgba(0,0,0,.5), inset 0 2px 0 rgba(255,255,255,.45);
 }
 .ls-nav-btn.home span { font-size: 24px; }
-
-/* ---------------- صفحه‌های کوچک ---------------- */
 
 @media (max-height: 700px) {
   .ls-mode-num { font-size: 46px; }
