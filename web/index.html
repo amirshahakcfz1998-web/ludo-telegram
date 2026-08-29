@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#1a0b2e">
+<meta name="theme-color" content="#3a0b4a">
 <title>لودو استار</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="stylesheet" href="/styles.css">
 <link rel="stylesheet" href="/enhance.css">
+<link rel="stylesheet" href="/lobby.css">
 </head>
 <body class="theme-dark">
 
@@ -29,44 +30,110 @@
   </div>
 </div>
 
-<!-- منوی اصلی -->
-<div id="menuScreen" class="screen hidden">
-  <header class="topbar">
-    <div class="profile-chip">
-      <div class="avatar" id="menuAvatar">👤</div>
-      <div class="who">
-        <div class="name" id="menuName">بازیکن</div>
-        <div class="sub"><span id="menuTier">🌱</span> <span id="menuRating">1200</span></div>
+<!-- ================= منوی اصلی (لابی حرفه‌ای) ================= -->
+<div id="menuScreen" class="screen ls hidden">
+
+  <!-- نوار بالا -->
+  <header class="ls-top">
+    <div class="ls-player">
+      <div class="ls-ava">
+        <div class="avatar" id="menuAvatar">👤</div>
       </div>
+      <div class="ls-pbody">
+        <div class="ls-pname" id="menuName">بازیکن</div>
+        <div class="ls-xp"><span id="menuXp" style="width:42%"></span></div>
+      </div>
+      <div class="ls-badge"><span id="menuTier">🌱</span></div>
     </div>
-    <button class="icon-btn" id="btnSettings">⚙️</button>
+
+    <div class="ls-wallet">
+      <div class="ls-pill gold"><i>🏆</i><b id="menuRating">1200</b></div>
+      <div class="ls-pill green"><i>🥇</i><b id="statWins">0</b></div>
+    </div>
+
+    <button class="ls-gear" id="btnSettings">⚙️</button>
   </header>
 
-  <div class="menu-body">
-    <div class="hero">
-      <div class="hero-board">
-        <span class="chip red"></span><span class="chip green"></span>
-        <span class="chip yellow"></span><span class="chip blue"></span>
+  <div class="ls-body">
+
+    <!-- ریل چپ و راست -->
+    <div class="ls-rail left">
+      <button class="ls-rail-btn" data-act="board"><span class="ic">🏆</span><small>برترین‌ها</small></button>
+      <button class="ls-rail-btn" data-act="profile"><span class="ic">📊</span><small>آمار من</small></button>
+    </div>
+
+    <div class="ls-rail right">
+      <button class="ls-rail-btn" data-act="join"><span class="ic">🔑</span><small>کد اتاق</small></button>
+      <button class="ls-rail-btn" data-act="ai"><span class="ic">🤖</span><small>تمرین</small></button>
+    </div>
+
+    <!-- بنر -->
+    <div class="ls-banner">
+      <div class="ls-banner-glow"></div>
+      <div class="ls-banner-txt">
+        <b>مسیر ستاره‌ها</b>
+        <span>ببر، امتیاز بگیر، بالا برو</span>
       </div>
-      <h1>لودو استار</h1>
-      <p class="muted">منچ آنلاین با دوستان</p>
+      <div class="ls-banner-ico">🎁</div>
     </div>
 
-    <div class="stat-row">
-      <div class="stat"><b id="statGames">0</b><span>بازی</span></div>
-      <div class="stat"><b id="statWins">0</b><span>برد</span></div>
-      <div class="stat"><b id="statRate">0٪</b><span>درصد برد</span></div>
+    <!-- لوگوی پشت‌زمینه -->
+    <div class="ls-logo">
+      <span>LUDO</span>
+      <span>STAR</span>
     </div>
 
-    <div class="menu-grid">
-      <button class="tile primary" data-act="ai">🤖<span>بازی با ربات</span></button>
-      <button class="tile" data-act="create2">👥<span>دو نفره</span></button>
-      <button class="tile" data-act="create4">🎯<span>چهار نفره</span></button>
-      <button class="tile" data-act="join">🔑<span>ورود با کد</span></button>
-      <button class="tile" data-act="board">🏆<span>برترین‌ها</span></button>
-      <button class="tile" data-act="profile">👤<span>پروفایل</span></button>
+    <!-- دو کارت اصلی -->
+    <div class="ls-modes">
+      <button class="ls-mode orange" data-act="create2">
+        <div class="ls-mode-num">۲</div>
+        <div class="ls-mode-art">
+          <i class="d red"></i><i class="d blue"></i><i class="cube">🎲</i>
+        </div>
+        <div class="ls-mode-label">دو نفره</div>
+      </button>
+
+      <button class="ls-mode purple" data-act="create4">
+        <div class="ls-mode-num">۴</div>
+        <div class="ls-mode-art">
+          <i class="d red"></i><i class="d green"></i>
+          <i class="d yellow"></i><i class="d blue"></i><i class="cube">🎲</i>
+        </div>
+        <div class="ls-mode-label">چهار نفره</div>
+      </button>
     </div>
+
+    <!-- سه کارت کوچک -->
+    <div class="ls-subs">
+      <button class="ls-sub" data-act="join">
+        <div class="ls-sub-art teal"><span>🔒</span></div>
+        <small>میز خصوصی</small>
+      </button>
+      <button class="ls-sub" data-act="ai">
+        <div class="ls-sub-art pink"><span>🤖</span></div>
+        <small>بازی با ربات</small>
+      </button>
+      <button class="ls-sub" data-act="create4">
+        <div class="ls-sub-art blue"><span>👥</span></div>
+        <small>با دوستان</small>
+      </button>
+    </div>
+
+    <!-- آمار کوچک -->
+    <div class="ls-stats">
+      <div><b id="statGames">0</b><small>بازی</small></div>
+      <div><b id="statRate">0٪</b><small>درصد برد</small></div>
+    </div>
+
   </div>
+
+  <!-- نوار پایین -->
+  <nav class="ls-nav">
+    <button class="ls-nav-btn" data-act="board"><span>🏆</span><small>برترین‌ها</small></button>
+    <button class="ls-nav-btn" data-act="join"><span>🔑</span><small>ورود با کد</small></button>
+    <button class="ls-nav-btn home active" data-act="ai"><span>🎲</span><small>بازی</small></button>
+    <button class="ls-nav-btn" data-act="profile"><span>👤</span><small>پروفایل</small></button>
+  </nav>
 </div>
 
 <!-- انتخاب سطح ربات -->
