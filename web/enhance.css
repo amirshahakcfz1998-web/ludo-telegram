@@ -1,0 +1,292 @@
+/* ============================================================
+   لودو استار — لایهٔ گرافیک پیشرفته
+   تاس سه‌بعدی واقعی، پرش مهره‌ها، فضای داخل بازی
+   ============================================================ */
+
+/* ---------- فضای داخل بازی: بنفش عمیق مثل نمونه ---------- */
+
+body { background: #1a0b2e; }
+
+.game-screen {
+  background:
+    radial-gradient(70vw 50vh at 50% -8%, rgba(150, 60, 200, 0.45), transparent 65%),
+    radial-gradient(60vw 40vh at 50% 108%, rgba(90, 30, 150, 0.5), transparent 62%),
+    linear-gradient(180deg, #2a1247, #1a0b2e 55%, #120722);
+}
+.game-screen::before {
+  content: '';
+  position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  opacity: 0.5;
+  background-image:
+    radial-gradient(circle at 12% 22%, rgba(255, 255, 255, 0.05) 0 9px, transparent 10px),
+    radial-gradient(circle at 82% 14%, rgba(255, 255, 255, 0.04) 0 12px, transparent 13px),
+    radial-gradient(circle at 26% 78%, rgba(255, 255, 255, 0.04) 0 11px, transparent 12px),
+    radial-gradient(circle at 90% 68%, rgba(255, 255, 255, 0.05) 0 8px, transparent 9px);
+  background-size: 220px 220px;
+}
+
+/* ---------- قاب چوبی/طلایی دور تخته ---------- */
+
+.board-frame {
+  position: relative;
+  padding: 3.2%;
+  border-radius: 26px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 40%),
+    linear-gradient(160deg, #b8722e, #8a4a1c 45%, #6d3712);
+  box-shadow:
+    0 24px 56px rgba(0, 0, 0, 0.6),
+    inset 0 2px 0 rgba(255, 226, 180, 0.55),
+    inset 0 -8px 16px rgba(0, 0, 0, 0.4);
+}
+
+.board {
+  border: none !important;
+  border-radius: 14px !important;
+  box-shadow:
+    inset 0 0 0 2px rgba(0, 0, 0, 0.25),
+    inset 0 3px 10px rgba(0, 0, 0, 0.3) !important;
+  background: #ffffff !important;
+  padding: 2% !important;
+}
+.board-grid, .tokens-layer, .fx-layer { inset: 2% !important; }
+.board-grid { gap: 0 !important; }
+
+.cell {
+  border-radius: 0 !important;
+  border: 1px solid rgba(30, 30, 60, 0.35) !important;
+  box-shadow: none !important;
+}
+.base { border-radius: 0 !important; }
+.base-yard { border-radius: 0 !important; }
+.center-home { border-radius: 0 !important; }
+
+/* ---------- نوار بازیکنان: کارت مثل نمونه ---------- */
+
+.players-strip { padding: 0 12px 10px; gap: 10px; }
+.pstrip {
+  min-width: 108px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.05));
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.pstrip.active {
+  background: linear-gradient(180deg, rgba(255, 214, 92, 0.3), rgba(255, 160, 40, 0.14));
+  border-color: rgba(255, 210, 90, 0.85);
+}
+@keyframes turnPulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(255, 205, 80, 0.55), 0 8px 22px rgba(255, 170, 40, 0.35); }
+  50% { box-shadow: 0 0 0 4px rgba(255, 230, 140, 0.75), 0 12px 28px rgba(255, 190, 60, 0.5); }
+}
+
+.turn-info {
+  background: rgba(0, 0, 0, 0.32);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.timer-bar { height: 7px; border-radius: 8px; }
+
+/* ============================================================
+   تاس سه‌بعدی واقعی (بدون عدد، با خال)
+   ============================================================ */
+
+.dice-raw { display: none !important; }
+
+.dice3d {
+  position: relative;
+  width: 64px; height: 64px;
+  perspective: 520px;
+  flex: none;
+}
+
+.dice-shadow {
+  position: absolute;
+  left: 12%; right: 12%; bottom: -8px; height: 12px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  filter: blur(5px);
+  transition: transform 0.3s, opacity 0.3s;
+}
+.dice3d.rolling .dice-shadow { animation: shadowPump 0.9s ease-in-out; }
+@keyframes shadowPump {
+  0%, 100% { transform: scaleX(1); opacity: 1; }
+  40% { transform: scaleX(0.55); opacity: 0.4; }
+}
+
+.dice-cube {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateX(-18deg) rotateY(22deg);
+  transition: transform 0.65s cubic-bezier(0.2, 1.25, 0.4, 1);
+}
+
+.dice-cube .face {
+  position: absolute;
+  width: 64px; height: 64px;
+  border-radius: 13px;
+  background: linear-gradient(150deg, #ffffff 0%, #f3f5ff 45%, #d8ddf2 100%);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.9),
+    inset 0 -8px 14px rgba(80, 90, 140, 0.28),
+    inset 0 6px 10px rgba(255, 255, 255, 0.95);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  padding: 11%;
+  backface-visibility: hidden;
+}
+
+.dice-cube .face i {
+  width: 78%;
+  aspect-ratio: 1;
+  align-self: center;
+  justify-self: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, #6b7399, #1d2247 65%, #0d1030);
+  box-shadow: inset 0 -1px 2px rgba(255, 255, 255, 0.35), 0 1px 1px rgba(255, 255, 255, 0.6);
+}
+
+/* چیدمان خال‌ها */
+.face.fa i:nth-child(1) { grid-area: 2 / 2; }
+
+.face.fb i:nth-child(1) { grid-area: 1 / 1; }
+.face.fb i:nth-child(2) { grid-area: 3 / 3; }
+
+.face.fc i:nth-child(1) { grid-area: 1 / 1; }
+.face.fc i:nth-child(2) { grid-area: 2 / 2; }
+.face.fc i:nth-child(3) { grid-area: 3 / 3; }
+
+.face.fd i:nth-child(1) { grid-area: 1 / 1; }
+.face.fd i:nth-child(2) { grid-area: 1 / 3; }
+.face.fd i:nth-child(3) { grid-area: 3 / 1; }
+.face.fd i:nth-child(4) { grid-area: 3 / 3; }
+
+.face.fe i:nth-child(1) { grid-area: 1 / 1; }
+.face.fe i:nth-child(2) { grid-area: 1 / 3; }
+.face.fe i:nth-child(3) { grid-area: 2 / 2; }
+.face.fe i:nth-child(4) { grid-area: 3 / 1; }
+.face.fe i:nth-child(5) { grid-area: 3 / 3; }
+
+.face.ff i:nth-child(1) { grid-area: 1 / 1; }
+.face.ff i:nth-child(2) { grid-area: 1 / 3; }
+.face.ff i:nth-child(3) { grid-area: 2 / 1; }
+.face.ff i:nth-child(4) { grid-area: 2 / 3; }
+.face.ff i:nth-child(5) { grid-area: 3 / 1; }
+.face.ff i:nth-child(6) { grid-area: 3 / 3; }
+
+/* جای‌گذاری شش وجه مکعب */
+.face.fa { transform: translateZ(32px); }
+.face.fb { transform: rotateY(180deg) translateZ(32px); }
+.face.fc { transform: rotateY(90deg) translateZ(32px); }
+.face.fd { transform: rotateY(-90deg) translateZ(32px); }
+.face.fe { transform: rotateX(90deg) translateZ(32px); }
+.face.ff { transform: rotateX(-90deg) translateZ(32px); }
+
+/* پرتاب تاس */
+.dice3d.rolling .dice-cube {
+  transition: none;
+  animation: tumble 0.9s cubic-bezier(0.25, 0.9, 0.35, 1);
+}
+@keyframes tumble {
+  0%   { transform: translateY(0) rotateX(-18deg) rotateY(22deg) scale(1); }
+  18%  { transform: translateY(-34px) rotateX(300deg) rotateY(220deg) scale(1.12); }
+  40%  { transform: translateY(4px) rotateX(660deg) rotateY(520deg) scale(0.96); }
+  58%  { transform: translateY(-16px) rotateX(920deg) rotateY(760deg) scale(1.06); }
+  78%  { transform: translateY(2px) rotateX(1140deg) rotateY(980deg) scale(0.98); }
+  100% { transform: translateY(0) rotateX(1260deg) rotateY(1100deg) scale(1); }
+}
+
+.dice3d.landed .dice-cube { animation: landBump 0.28s ease-out; }
+@keyframes landBump {
+  0% { filter: brightness(1.5); }
+  100% { filter: brightness(1); }
+}
+
+.btn.roll { border-radius: 18px; }
+
+/* ============================================================
+   انیمیشن مهره‌ها
+   ============================================================ */
+
+.token {
+  transition:
+    left 0.42s cubic-bezier(0.35, 0.05, 0.25, 1),
+    top 0.42s cubic-bezier(0.35, 0.05, 0.25, 1) !important;
+}
+
+/* پرش هنگام جابه‌جایی */
+.token.hop { animation: tokenHop 0.42s cubic-bezier(0.3, 0.8, 0.4, 1) !important; }
+@keyframes tokenHop {
+  0%   { transform: translate(-50%, -62%) scale(1) rotate(0deg); }
+  35%  { transform: translate(-50%, -118%) scale(1.28) rotate(-8deg); }
+  70%  { transform: translate(-50%, -74%) scale(1.06) rotate(5deg); }
+  100% { transform: translate(-50%, -62%) scale(1) rotate(0deg); }
+}
+
+/* ورود مهره به تخته */
+.token.pop { animation: tokenPop 0.45s cubic-bezier(0.2, 1.5, 0.4, 1) !important; }
+@keyframes tokenPop {
+  0%   { transform: translate(-50%, -62%) scale(0.1); opacity: 0; }
+  60%  { transform: translate(-50%, -80%) scale(1.35); opacity: 1; }
+  100% { transform: translate(-50%, -62%) scale(1); }
+}
+
+/* زده‌شدن مهره */
+.token.kicked { animation: tokenKick 0.5s ease-in !important; }
+@keyframes tokenKick {
+  0%   { transform: translate(-50%, -62%) scale(1) rotate(0deg); }
+  40%  { transform: translate(-50%, -150%) scale(1.3) rotate(180deg); }
+  100% { transform: translate(-50%, -62%) scale(1) rotate(360deg); }
+}
+
+/* هالهٔ مهره‌های قابل حرکت */
+.token.movable::before {
+  content: '';
+  position: absolute;
+  left: -22%; right: -22%; top: -22%; bottom: -22%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.55), transparent 68%);
+  animation: haloPulse 1s ease-in-out infinite;
+  filter: none;
+  z-index: -1;
+}
+@keyframes haloPulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.92); }
+  50% { opacity: 0.95; transform: scale(1.12); }
+}
+
+/* نشانگر نوبت زیر پایگاه فعال */
+.turn-arrow {
+  position: absolute;
+  width: 7%; height: 7%;
+  transform: translate(-50%, -50%);
+  font-size: 0;
+  z-index: 8;
+  pointer-events: none;
+}
+.turn-arrow::after {
+  content: '▼';
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-size: 15px;
+  color: #ffd34d;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  animation: arrowBounce 0.9s ease-in-out infinite;
+}
+@keyframes arrowBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@media (max-height: 680px) {
+  .dice3d { width: 54px; height: 54px; }
+  .dice-cube .face { width: 54px; height: 54px; }
+  .face.fa { transform: translateZ(27px); }
+  .face.fb { transform: rotateY(180deg) translateZ(27px); }
+  .face.fc { transform: rotateY(90deg) translateZ(27px); }
+  .face.fd { transform: rotateY(-90deg) translateZ(27px); }
+  .face.fe { transform: rotateX(90deg) translateZ(27px); }
+  .face.ff { transform: rotateX(-90deg) translateZ(27px); }
+}
