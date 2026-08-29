@@ -1,17 +1,73 @@
 /* ============================================================
    لودو استار — لایهٔ ارتقای تعامل
-   تاس سه‌بعدی واقعی (بدون عدد) + انیمیشن مهره‌ها
-   این فایل هیچ کدی از app.js را تغییر نمی‌دهد، فقط روی آن سوار می‌شود.
+   تاس سه‌بعدی + انیمیشن مهره‌ها + اتصال دکمه‌های لابی جدید
    ============================================================ */
 (function () {
   'use strict';
 
-  /* ---------- اصلاح دو غلط تایپی کوچک در enhance.css ---------- */
+  /* ---------- اصلاحیه‌های CSS ---------- */
   var fix = document.createElement('style');
   fix.textContent =
     '.face.ff i:nth-child(4){grid-area:2 / 3;}' +
-    '.token{transition:left .42s cubic-bezier(.35,.05,.25,1),top .42s cubic-bezier(.35,.05,.25,1);}';
+    '.token{transition:left .42s cubic-bezier(.35,.05,.25,1),top .42s cubic-bezier(.35,.05,.25,1);}' +
+    '.ls-mode.purple{background:linear-gradient(180deg,#8a4ce8,#5f27bd 60%,#421694);}' +
+    '.ls-mode-art .d.green{background:radial-gradient(circle at 34% 28%,#96f2b8,#17a54e);}' +
+    '.ls-legacy{position:absolute!important;width:0;height:0;overflow:hidden;opacity:0;pointer-events:none;}';
   document.head.appendChild(fix);
+
+  /* ============================================================
+     ۰) اتصال دکمه‌های لابی جدید به منطق app.js
+     app.js فقط دکمه‌های کلاس .tile را می‌شناسد، پس یک نسخهٔ
+     نامرئی از آن‌ها می‌سازیم و کلیک‌ها را به آن هدایت می‌کنیم.
+     ============================================================ */
+  (function wireLobby() {
+    var menu = document.getElementById('menuScreen');
+    if (!menu) return;
+
+    var acts = ['ai', 'create2', 'create4', 'join', 'board', 'profile'];
+    var box = document.createElement('div');
+    box.className = 'menu-grid ls-legacy';
+    box.setAttribute('aria-hidden', 'true');
+
+    var legacy = {};
+    for (var i = 0; i < acts.length; i++) {
+      var b = document.createElement('button');
+      b.className = 'tile';
+      b.setAttribute('data-act', acts[i]);
+      b.tabIndex = -1;
+      box.appendChild(b);
+      legacy[acts[i]] = b;
+    }
+    menu.appendChild(box);
+
+    var SEL = '.ls-mode, .ls-sub, .ls-rail-btn, .ls-nav-btn';
+
+    document.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest(SEL) : null;
+      if (!btn) return;
+
+      var act = btn.getAttribute('data-act');
+      if (!act || !legacy[act]) return;
+
+      // جلوی اجرای دوباره را می‌گیریم و فقط یک بار عمل می‌کنیم
+      e.preventDefault();
+      e.stopPropagation();
+
+      // نشان دادن دکمهٔ فعال در نوار پایین
+      if (btn.classList.contains('ls-nav-btn')) {
+        var navs = document.querySelectorAll('.ls-nav-btn');
+        for (var n = 0; n < navs.length; n++) navs[n].classList.remove('active');
+        btn.classList.add('active');
+      }
+
+      try {
+        var tg = window.Telegram && window.Telegram.WebApp;
+        if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+      } catch (err) { /* ignore */ }
+
+      legacy[act].click();
+    }, true);
+  })();
 
   function $(id) { return document.getElementById(id); }
 
@@ -24,7 +80,6 @@
      ۱) تاس سه‌بعدی
      ============================================================ */
 
-  // چرخشی که هر وجه را رو به بیننده می‌آورد
   var FACE = {
     1: { x: 0,   y: 0 },
     2: { x: 0,   y: 180 },
@@ -52,17 +107,16 @@
     rollStart = Date.now();
     dice.classList.remove('landed');
     dice.classList.remove('rolling');
-    void dice.offsetWidth;      // ریست انیمیشن
+    void dice.offsetWidth;
     dice.classList.add('rolling');
     clearTimeout(stopTimer);
-    // اگر پاسخی از سرور نیامد، بعد از ۳ ثانیه تاس را آرام کن
     stopTimer = setTimeout(function () { land(null); }, 3000);
   }
 
   function land(value) {
     clearTimeout(stopTimer);
     clearTimeout(landTimer);
-    var wait = Math.max(0, 900 - (Date.now() - rollStart));   // تا پایان پرش
+    var wait = Math.max(0, 900 - (Date.now() - rollStart));
     landTimer = setTimeout(function () {
       rolling = false;
       dice.classList.remove('rolling');
@@ -76,7 +130,6 @@
     }, wait);
   }
 
-  // مقدار تاس را از متن مخفی‌شدهٔ app.js می‌خوانیم
   var lastVal = 0;
   var settle = null;
 
@@ -93,26 +146,22 @@
       if (!v) return;
 
       if (dice.classList.contains('rolling') || rolling) {
-        // وسط پرتاب هستیم: آخرین عدد ثابت را به عنوان نتیجه بگیر
         clearTimeout(settle);
         settle = setTimeout(function () {
           lastVal = readValue() || lastVal;
           land(lastVal);
         }, 180);
       } else if (v !== lastVal) {
-        // همگام‌سازی ساده (بدون پرتاب)
         lastVal = v;
         setFace(v, false);
       }
     }).observe(valEl, { childList: true, characterData: true, subtree: true });
 
-    // با کلیک، تاس فوراً شروع به چرخش می‌کند (حس پاسخ‌گویی)
     var rollBtn = $('btnRoll');
     if (rollBtn) rollBtn.addEventListener('click', function () {
       if (!rollBtn.disabled) beginRoll();
     });
 
-    // اگر app.js خودش کلاس rolling را گذاشت هم تشخیص بده
     new MutationObserver(function () {
       if (dice.classList.contains('rolling') && !rolling) {
         rolling = true;
@@ -137,7 +186,6 @@
       for (var i = 0; i < list.length; i++) {
         var m = list[i];
 
-        // مهرهٔ تازه‌ساخته‌شده: ظاهر شدن با پاپ
         if (m.type === 'childList' && m.addedNodes.length) {
           for (var a = 0; a < m.addedNodes.length; a++) {
             var node = m.addedNodes[a];
@@ -152,7 +200,6 @@
           }
         }
 
-        // جابه‌جایی مهره: پرش
         if (m.type === 'attributes' && m.attributeName === 'style') {
           var el = m.target;
           if (!el.dataset || el.dataset.seen !== '1') continue;
