@@ -1,0 +1,719 @@
+/* لودو استار — ظاهر، چیدمان و انیمیشن‌ها */
+
+:root {
+  --red: #ff4757;
+  --red-d: #b3202c;
+  --green: #2ed573;
+  --green-d: #17994a;
+  --yellow: #ffd32a;
+  --yellow-d: #c79b00;
+  --blue: #3aa0ff;
+  --blue-d: #1462a8;
+
+  --bg: #0f1226;
+  --bg2: #171c3a;
+  --card: rgba(255, 255, 255, 0.07);
+  --card-brd: rgba(255, 255, 255, 0.14);
+  --text: #f2f5ff;
+  --muted: #9aa3c7;
+  --accent: #7c5cff;
+  --accent2: #00d2ff;
+  --safe: rgba(255, 255, 255, 0.16);
+  --cell: rgba(255, 255, 255, 0.07);
+  --radius: 18px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+body.theme-light {
+  --bg: #eef1fb;
+  --bg2: #ffffff;
+  --card: rgba(20, 25, 60, 0.05);
+  --card-brd: rgba(20, 25, 60, 0.12);
+  --text: #151a35;
+  --muted: #5b6485;
+  --cell: rgba(20, 25, 60, 0.06);
+  --safe: rgba(20, 25, 60, 0.12);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Vazirmatn, Tahoma, sans-serif;
+  color: var(--text);
+  background: radial-gradient(1200px 800px at 50% -10%, var(--bg2), var(--bg));
+  user-select: none;
+}
+
+.hidden { display: none !important; }
+.muted { color: var(--muted); font-size: 13px; }
+.err { color: var(--red); font-size: 13px; min-height: 18px; margin: 6px 0 0; }
+
+/* ---------------- صفحه‌ها ---------------- */
+
+.screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  animation: fadeIn 0.25s ease;
+}
+
+.screen.center { align-items: center; justify-content: center; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.center-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  overflow-y: auto;
+}
+
+/* ---------------- نوار بالا ---------------- */
+
+.topbar, .game-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  min-height: 56px;
+}
+
+.topbar h2, .game-top h2 { margin: 0; font-size: 17px; font-weight: 700; }
+
+.icon-btn {
+  border: 1px solid var(--card-brd);
+  background: var(--card);
+  color: var(--text);
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  font-size: 17px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.2s;
+}
+.icon-btn:active { transform: scale(0.92); }
+
+.profile-chip { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+.avatar {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: grid; place-items: center;
+  font-size: 20px;
+  overflow: hidden;
+  flex: none;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.who .name { font-weight: 700; font-size: 15px; }
+.who .sub { color: var(--muted); font-size: 12px; }
+
+.conn { font-size: 14px; }
+
+/* ---------------- کارت شیشه‌ای ---------------- */
+
+.glass-card {
+  background: var(--card);
+  border: 1px solid var(--card-brd);
+  border-radius: var(--radius);
+  padding: 18px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.glass-card h2 { margin: 8px 0; font-size: 19px; }
+.big-icon { font-size: 42px; }
+
+/* ---------------- دکمه‌ها ---------------- */
+
+.btn {
+  width: 100%;
+  border: 1px solid var(--card-brd);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 13px 16px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: transform 0.14s, filter 0.2s, opacity 0.2s;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.45; }
+
+.btn.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(124, 92, 255, 0.35);
+}
+.btn.danger { background: rgba(255, 71, 87, 0.18); border-color: rgba(255, 71, 87, 0.4); }
+.btn.ghost { background: transparent; }
+.btn.small { width: auto; padding: 10px 14px; margin: 0; }
+
+/* ---------------- منوی اصلی ---------------- */
+
+.menu-body { flex: 1; overflow-y: auto; padding: 6px 14px 20px; }
+
+.hero { text-align: center; padding: 10px 0 16px; }
+.hero h1 {
+  margin: 10px 0 2px;
+  font-size: 26px;
+  background: linear-gradient(135deg, var(--accent2), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hero-board {
+  width: 84px; height: 84px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 20px;
+  background: var(--card);
+  border: 1px solid var(--card-brd);
+  animation: float 3.5s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(2deg); }
+}
+
+.chip { border-radius: 8px; }
+.chip.red { background: linear-gradient(160deg, var(--red), var(--red-d)); }
+.chip.green { background: linear-gradient(160deg, var(--green), var(--green-d)); }
+.chip.yellow { background: linear-gradient(160deg, var(--yellow), var(--yellow-d)); }
+.chip.blue { background: linear-gradient(160deg, var(--blue), var(--blue-d)); }
+
+.stat-row { display: flex; gap: 10px; margin-bottom: 14px; }
+.stat {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--card-brd);
+  border-radius: 14px;
+  padding: 10px;
+  text-align: center;
+}
+.stat b { display: block; font-size: 18px; }
+.stat span { color: var(--muted); font-size: 11px; }
+
+.menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.tile {
+  border: 1px solid var(--card-brd);
+  background: var(--card);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 18px 12px;
+  font-size: 26px;
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.2s;
+}
+.tile span { font-size: 13px; font-weight: 700; }
+.tile:active { transform: scale(0.96); }
+.tile.primary {
+  background: linear-gradient(135deg, rgba(124, 92, 255, 0.35), rgba(0, 210, 255, 0.22));
+  border-color: rgba(124, 92, 255, 0.5);
+}
+
+/* ---------------- فهرست‌ها ---------------- */
+
+.list { flex: 1; overflow-y: auto; padding: 6px 14px 24px; display: flex; flex-direction: column; gap: 10px; }
+
+.row-btn {
+  width: 100%;
+  border: 1px solid var(--card-brd);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: transform 0.14s;
+}
+.row-btn:active { transform: scale(0.98); }
+.row-btn small { color: var(--muted); font-weight: 500; font-size: 12px; }
+
+.rank-row {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--card-brd);
+  border-radius: 14px;
+  padding: 11px 14px;
+}
+.rank-row.me { border-color: var(--accent); background: rgba(124, 92, 255, 0.14); }
+.rank-row .pos { width: 28px; font-weight: 800; color: var(--muted); }
+.rank-row .nm { flex: 1; font-weight: 700; font-size: 14px; }
+.rank-row .pt { font-weight: 800; color: var(--accent2); }
+
+/* ---------------- کد اتاق ---------------- */
+
+.room-code {
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 5px;
+  margin: 8px 0 12px;
+  color: var(--accent2);
+  direction: ltr;
+}
+
+.code-input {
+  width: 100%;
+  margin: 12px 0;
+  padding: 14px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 5px;
+  text-align: center;
+  text-transform: uppercase;
+  direction: ltr;
+  border-radius: 14px;
+  border: 1px solid var(--card-brd);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text);
+  font-family: inherit;
+}
+.code-input:focus { outline: 2px solid var(--accent); }
+
+.players-list { display: flex; flex-direction: column; gap: 8px; }
+
+.player-card {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--card-brd);
+  border-left: 4px solid var(--muted);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+.player-card.c-RED { border-left-color: var(--red); }
+.player-card.c-GREEN { border-left-color: var(--green); }
+.player-card.c-YELLOW { border-left-color: var(--yellow); }
+.player-card.c-BLUE { border-left-color: var(--blue); }
+.player-card .pname { flex: 1; font-weight: 700; font-size: 14px; }
+.player-card .pst { font-size: 13px; }
+.player-card.empty { opacity: 0.45; font-style: italic; }
+
+.lobby-actions { display: flex; flex-direction: column; }
+
+/* ---------------- نوار بازیکنان در بازی ---------------- */
+
+.players-strip {
+  display: flex; gap: 8px;
+  padding: 0 12px 8px;
+  overflow-x: auto;
+}
+
+.pstrip {
+  flex: none;
+  min-width: 92px;
+  background: var(--card);
+  border: 1px solid var(--card-brd);
+  border-radius: 12px;
+  padding: 7px 9px;
+  font-size: 12px;
+  transition: box-shadow 0.25s, transform 0.25s;
+}
+.pstrip.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.4);
+  transform: translateY(-2px);
+}
+.pstrip .top { display: flex; align-items: center; gap: 5px; font-weight: 700; }
+.pstrip .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.pstrip .bot { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+.dot.RED { background: var(--red); }
+.dot.GREEN { background: var(--green); }
+.dot.YELLOW { background: var(--yellow); }
+.dot.BLUE { background: var(--blue); }
+
+/* ---------------- نوار زمان ---------------- */
+
+.timer-bar {
+  height: 4px;
+  margin: 0 12px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.timer-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--green), var(--yellow));
+  transition: width 0.25s linear, background 0.4s;
+}
+.timer-fill.low { background: linear-gradient(90deg, var(--yellow), var(--red)); }
+.timer-fill.critical { background: var(--red); animation: pulseBar 0.6s infinite; }
+@keyframes pulseBar { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+.turn-info { display: flex; align-items: center; gap: 7px; font-weight: 700; font-size: 14px; }
+.turn-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--muted); }
+
+/* ---------------- تخته ---------------- */
+
+.board-wrap {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 4px 10px;
+  min-height: 0;
+}
+
+.board {
+  position: relative;
+  width: min(94vw, 62vh, 460px);
+  aspect-ratio: 1;
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.09), rgba(0, 0, 0, 0.25));
+  border: 1px solid var(--card-brd);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  padding: 2.5%;
+  overflow: hidden;
+}
+
+.board-grid, .tokens-layer, .fx-layer {
+  position: absolute;
+  inset: 2.5%;
+}
+.board-grid { display: grid; grid-template-columns: repeat(15, 1fr); grid-template-rows: repeat(15, 1fr); gap: 1px; }
+.tokens-layer, .fx-layer { pointer-events: none; }
+.tokens-layer { z-index: 3; }
+.fx-layer { z-index: 4; }
+
+.cell {
+  border-radius: 3px;
+  background: var(--cell);
+}
+.cell.path { background: rgba(255, 255, 255, 0.11); }
+.cell.safe { background: var(--safe); }
+.cell.safe::after { content: '★'; font-size: 9px; opacity: 0.55; display: grid; place-items: center; height: 100%; }
+.cell.start-RED { background: rgba(255, 71, 87, 0.55); }
+.cell.start-GREEN { background: rgba(46, 213, 115, 0.55); }
+.cell.start-YELLOW { background: rgba(255, 211, 42, 0.55); }
+.cell.start-BLUE { background: rgba(58, 160, 255, 0.55); }
+.cell.home-RED { background: rgba(255, 71, 87, 0.4); }
+.cell.home-GREEN { background: rgba(46, 213, 115, 0.4); }
+.cell.home-YELLOW { background: rgba(255, 211, 42, 0.4); }
+.cell.home-BLUE { background: rgba(58, 160, 255, 0.4); }
+
+.base {
+  border-radius: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+.base.RED { background: linear-gradient(150deg, rgba(255, 71, 87, 0.35), rgba(179, 32, 44, 0.2)); }
+.base.GREEN { background: linear-gradient(150deg, rgba(46, 213, 115, 0.35), rgba(23, 153, 74, 0.2)); }
+.base.YELLOW { background: linear-gradient(150deg, rgba(255, 211, 42, 0.35), rgba(199, 155, 0, 0.2)); }
+.base.BLUE { background: linear-gradient(150deg, rgba(58, 160, 255, 0.35), rgba(20, 98, 168, 0.2)); }
+
+.center-home {
+  border-radius: 10px;
+  background: conic-gradient(var(--red) 0 25%, var(--green) 0 50%, var(--yellow) 0 75%, var(--blue) 0);
+  opacity: 0.75;
+  display: grid; place-items: center;
+  font-size: 15px;
+}
+
+/* ---------------- مهره‌های سه‌بعدی ---------------- */
+
+.token {
+  position: absolute;
+  width: 6%;
+  height: 6%;
+  border-radius: 50%;
+  transform: translate(-50%, -60%);
+  transition: left 0.32s cubic-bezier(0.34, 1.4, 0.64, 1), top 0.32s cubic-bezier(0.34, 1.4, 0.64, 1);
+  z-index: 5;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.token::before {
+  content: '';
+  position: absolute;
+  left: 12%; right: 12%;
+  bottom: -14%;
+  height: 26%;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  filter: blur(2px);
+  z-index: -1;
+}
+
+.token .cap {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 -22% 26% rgba(0, 0, 0, 0.45),
+    inset 0 26% 22% rgba(255, 255, 255, 0.5),
+    0 3px 8px rgba(0, 0, 0, 0.4);
+}
+.token .gloss {
+  position: absolute;
+  top: 12%; left: 20%;
+  width: 34%; height: 26%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.72);
+  filter: blur(1px);
+}
+
+.token.RED .cap { background: radial-gradient(circle at 34% 28%, #ff8a94, var(--red) 55%, var(--red-d)); }
+.token.GREEN .cap { background: radial-gradient(circle at 34% 28%, #8bf0b4, var(--green) 55%, var(--green-d)); }
+.token.YELLOW .cap { background: radial-gradient(circle at 34% 28%, #ffec9e, var(--yellow) 55%, var(--yellow-d)); }
+.token.BLUE .cap { background: radial-gradient(circle at 34% 28%, #a5d6ff, var(--blue) 55%, var(--blue-d)); }
+
+.token.movable {
+  animation: bob 0.9s ease-in-out infinite;
+  filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.85));
+}
+@keyframes bob {
+  0%, 100% { transform: translate(-50%, -60%) scale(1); }
+  50% { transform: translate(-50%, -74%) scale(1.08); }
+}
+
+.token.selected { filter: drop-shadow(0 0 10px var(--accent2)); }
+.token.stacked::after {
+  content: attr(data-stack);
+  position: absolute;
+  top: -32%; right: -22%;
+  min-width: 46%;
+  padding: 1px 3px;
+  border-radius: 999px;
+  background: #111;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  text-align: center;
+}
+.token.done { opacity: 0.9; }
+
+/* ---------------- جلوه‌ها ---------------- */
+
+.fx {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 20px;
+  font-weight: 800;
+  pointer-events: none;
+  animation: fxUp 1s ease-out forwards;
+}
+@keyframes fxUp {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  25% { opacity: 1; transform: translate(-50%, -80%) scale(1.15); }
+  100% { opacity: 0; transform: translate(-50%, -160%) scale(1); }
+}
+
+.ripple {
+  position: absolute;
+  width: 10%; height: 10%;
+  border-radius: 50%;
+  border: 2px solid var(--accent2);
+  transform: translate(-50%, -50%);
+  animation: ripple 0.7s ease-out forwards;
+}
+@keyframes ripple {
+  from { opacity: 0.9; transform: translate(-50%, -50%) scale(0.4); }
+  to { opacity: 0; transform: translate(-50%, -50%) scale(2.6); }
+}
+
+/* ---------------- تاس ---------------- */
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px 14px;
+}
+
+.dice-area { display: flex; align-items: center; gap: 10px; }
+
+.dice3d {
+  width: 54px; height: 54px;
+  perspective: 300px;
+  flex: none;
+}
+.dice-inner {
+  width: 100%; height: 100%;
+  border-radius: 14px;
+  background: linear-gradient(150deg, #ffffff, #d5dcf5);
+  color: #1a2050;
+  display: grid; place-items: center;
+  font-size: 26px;
+  font-weight: 900;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45), inset 0 -4px 8px rgba(0, 0, 0, 0.18);
+  transform-style: preserve-3d;
+}
+.dice3d.rolling .dice-inner { animation: rollDice 0.75s cubic-bezier(0.3, 1.4, 0.5, 1); }
+@keyframes rollDice {
+  0% { transform: rotateX(0) rotateY(0) scale(1); }
+  35% { transform: rotateX(320deg) rotateY(240deg) scale(1.18); }
+  70% { transform: rotateX(560deg) rotateY(520deg) scale(1.06); }
+  100% { transform: rotateX(720deg) rotateY(720deg) scale(1); }
+}
+
+.btn.roll { margin: 0; width: auto; padding: 14px 22px; }
+.btn.roll.ready { animation: glow 1.4s ease-in-out infinite; }
+@keyframes glow {
+  0%, 100% { box-shadow: 0 8px 24px rgba(124, 92, 255, 0.35); }
+  50% { box-shadow: 0 8px 34px rgba(0, 210, 255, 0.65); }
+}
+
+.hint { flex: 1; font-size: 12px; color: var(--muted); text-align: center; }
+.chat-toggle { flex: none; }
+
+/* ---------------- چت ---------------- */
+
+.chat-panel {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  max-height: 62%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg2);
+  border-top: 1px solid var(--card-brd);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -12px 34px rgba(0, 0, 0, 0.45);
+  z-index: 20;
+  padding-bottom: env(safe-area-inset-bottom);
+  animation: slideUp 0.25s ease;
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: none; } }
+
+.chat-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; }
+.chat-msgs { flex: 1; overflow-y: auto; padding: 0 14px 8px; display: flex; flex-direction: column; gap: 7px; }
+
+.cmsg {
+  max-width: 82%;
+  padding: 8px 11px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--card-brd);
+  font-size: 13px;
+  align-self: flex-start;
+  word-break: break-word;
+}
+.cmsg.mine { align-self: flex-end; background: rgba(124, 92, 255, 0.28); border-color: rgba(124, 92, 255, 0.5); }
+.cmsg .snd { display: block; font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+
+.quick-replies { display: flex; gap: 7px; overflow-x: auto; padding: 6px 14px; }
+.quick-replies button {
+  flex: none;
+  border: 1px solid var(--card-brd);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.chat-input { display: flex; gap: 8px; padding: 8px 14px 12px; }
+.chat-input input {
+  flex: 1;
+  border-radius: 14px;
+  border: 1px solid var(--card-brd);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text);
+  padding: 11px 13px;
+  font-size: 14px;
+  font-family: inherit;
+}
+.chat-input input:focus { outline: 2px solid var(--accent); }
+
+/* ---------------- نتیجه ---------------- */
+
+.result .rank-list { display: flex; flex-direction: column; gap: 7px; margin: 12px 0; }
+.result .rank-list div {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--card);
+  border: 1px solid var(--card-brd);
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.result-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.result-stats div {
+  background: var(--card);
+  border: 1px solid var(--card-brd);
+  border-radius: 12px;
+  padding: 9px;
+  font-size: 12px;
+}
+.result-stats b { display: block; font-size: 16px; margin-top: 2px; }
+
+/* ---------------- بارگذاری و پیام شناور ---------------- */
+
+.dice-loader { animation: spinLoad 1.4s cubic-bezier(0.5, 0, 0.5, 1) infinite; }
+.dice-face { font-size: 52px; }
+@keyframes spinLoad {
+  0% { transform: rotate(0) scale(1); }
+  50% { transform: rotate(180deg) scale(1.2); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+.loading-text { color: var(--muted); font-size: 14px; margin-top: 12px; }
+
+.toast {
+  position: fixed;
+  left: 50%; bottom: 90px;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.86);
+  color: #fff;
+  padding: 11px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  z-index: 50;
+  animation: toastIn 0.25s ease;
+  max-width: 88vw;
+  text-align: center;
+}
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 14px); } to { opacity: 1; transform: translateX(-50%); } }
+
+/* ---------------- صفحه‌های کوچک ---------------- */
+
+@media (max-height: 640px) {
+  .board { width: min(90vw, 56vh, 400px); }
+  .dice3d { width: 46px; height: 46px; }
+  .players-strip { padding-bottom: 4px; }
+  .hero { padding: 4px 0 10px; }
+  .hero h1 { font-size: 22px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.05s !important; }
+}
