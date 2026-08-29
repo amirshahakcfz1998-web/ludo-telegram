@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f1226">
+<title>لودو استار</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body class="theme-dark">
+
+<!-- صفحهٔ بارگذاری -->
+<div id="loader" class="screen center">
+  <div class="dice-loader">
+    <div class="dice-face">🎲</div>
+  </div>
+  <p class="loading-text">در حال اتصال…</p>
+</div>
+
+<!-- خطا -->
+<div id="errorScreen" class="screen center hidden">
+  <div class="glass-card">
+    <div class="big-icon">⚠️</div>
+    <h2 id="errorTitle">مشکلی پیش آمد</h2>
+    <p id="errorText" class="muted">لطفاً دوباره تلاش کن.</p>
+    <button class="btn primary" id="btnRetry">🔄 تلاش دوباره</button>
+  </div>
+</div>
+
+<!-- منوی اصلی -->
+<div id="menuScreen" class="screen hidden">
+  <header class="topbar">
+    <div class="profile-chip">
+      <div class="avatar" id="menuAvatar">👤</div>
+      <div class="who">
+        <div class="name" id="menuName">بازیکن</div>
+        <div class="sub"><span id="menuTier">🌱</span> <span id="menuRating">1200</span></div>
+      </div>
+    </div>
+    <button class="icon-btn" id="btnSettings">⚙️</button>
+  </header>
+
+  <div class="menu-body">
+    <div class="hero">
+      <div class="hero-board">
+        <span class="chip red"></span><span class="chip green"></span>
+        <span class="chip yellow"></span><span class="chip blue"></span>
+      </div>
+      <h1>لودو استار</h1>
+      <p class="muted">منچ آنلاین با دوستان</p>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat"><b id="statGames">0</b><span>بازی</span></div>
+      <div class="stat"><b id="statWins">0</b><span>برد</span></div>
+      <div class="stat"><b id="statRate">0٪</b><span>درصد برد</span></div>
+    </div>
+
+    <div class="menu-grid">
+      <button class="tile primary" data-act="ai">🤖<span>بازی با ربات</span></button>
+      <button class="tile" data-act="create2">👥<span>دو نفره</span></button>
+      <button class="tile" data-act="create4">🎯<span>چهار نفره</span></button>
+      <button class="tile" data-act="join">🔑<span>ورود با کد</span></button>
+      <button class="tile" data-act="board">🏆<span>برترین‌ها</span></button>
+      <button class="tile" data-act="profile">👤<span>پروفایل</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- انتخاب سطح ربات -->
+<div id="aiScreen" class="screen hidden">
+  <header class="topbar">
+    <button class="icon-btn" data-back>◀️</button>
+    <h2>سطح ربات</h2>
+    <span></span>
+  </header>
+  <div class="list">
+    <button class="row-btn" data-ai="EASY">🟢 آسان<small>برای شروع</small></button>
+    <button class="row-btn" data-ai="NORMAL">🔵 معمولی<small>متعادل</small></button>
+    <button class="row-btn" data-ai="HARD">🟠 سخت<small>حساب‌گر</small></button>
+    <button class="row-btn" data-ai="EXPERT">🔴 حرفه‌ای<small>یک حرکت جلوتر</small></button>
+    <button class="row-btn" data-ai="MASTER">👑 استاد<small>چند حرکت جلوتر</small></button>
+  </div>
+</div>
+
+<!-- ورود با کد -->
+<div id="joinScreen" class="screen hidden">
+  <header class="topbar">
+    <button class="icon-btn" data-back>◀️</button>
+    <h2>ورود با کد</h2>
+    <span></span>
+  </header>
+  <div class="center-col">
+    <div class="glass-card">
+      <p class="muted">کد ۶ حرفی اتاق را وارد کن</p>
+      <input id="codeInput" class="code-input" maxlength="6" placeholder="K7M2QX" autocomplete="off">
+      <button class="btn primary" id="btnJoinCode">🚪 ورود</button>
+      <p class="err" id="joinErr"></p>
+    </div>
+  </div>
+</div>
+
+<!-- اتاق انتظار -->
+<div id="lobbyScreen" class="screen hidden">
+  <header class="topbar">
+    <button class="icon-btn" data-back>◀️</button>
+    <h2>اتاق بازی</h2>
+    <span class="conn" id="lobbyConn">🟢</span>
+  </header>
+  <div class="center-col">
+    <div class="glass-card">
+      <p class="muted">کد اتاق</p>
+      <div class="room-code" id="lobbyCode">------</div>
+      <button class="btn ghost" id="btnCopyCode">📋 کپی کد</button>
+    </div>
+    <div class="players-list" id="lobbyPlayers"></div>
+    <div class="lobby-actions">
+      <button class="btn primary" id="btnStart">▶️ شروع بازی</button>
+      <button class="btn ghost" id="btnAddBot">🤖 افزودن ربات</button>
+      <button class="btn ghost" id="btnInvite">📨 دعوت دوستان</button>
+      <button class="btn danger" id="btnLeaveLobby">🚪 خروج</button>
+    </div>
+  </div>
+</div>
+
+<!-- صفحهٔ بازی -->
+<div id="gameScreen" class="screen hidden">
+  <header class="game-top">
+    <button class="icon-btn" id="btnExitGame">✖️</button>
+    <div class="turn-info">
+      <span class="turn-dot" id="turnDot"></span>
+      <span id="turnName">…</span>
+    </div>
+    <span class="conn" id="gameConn">🟢</span>
+  </header>
+
+  <div class="timer-bar"><div class="timer-fill" id="timerFill"></div></div>
+
+  <div class="players-strip" id="playersStrip"></div>
+
+  <div class="board-wrap">
+    <div class="board" id="board">
+      <div class="board-grid" id="boardGrid"></div>
+      <div class="tokens-layer" id="tokensLayer"></div>
+      <div class="fx-layer" id="fxLayer"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="dice-area">
+      <div class="dice3d" id="dice">
+        <div class="dice-inner" id="diceInner"><span id="diceValue">🎲</span></div>
+      </div>
+      <button class="btn primary roll" id="btnRoll">🎲 بریز</button>
+    </div>
+    <div class="hint" id="hint">منتظر شروع بازی…</div>
+    <button class="icon-btn chat-toggle" id="btnChat">💬</button>
+  </div>
+
+  <!-- چت -->
+  <div class="chat-panel hidden" id="chatPanel">
+    <div class="chat-head">
+      <b>گفتگو</b>
+      <button class="icon-btn" id="btnCloseChat">✖️</button>
+    </div>
+    <div class="chat-msgs" id="chatMsgs"></div>
+    <div class="quick-replies" id="quickReplies"></div>
+    <div class="chat-input">
+      <input id="chatText" placeholder="پیام…" maxlength="120">
+      <button class="btn primary small" id="btnSendChat">ارسال</button>
+    </div>
+  </div>
+</div>
+
+<!-- پایان بازی -->
+<div id="overScreen" class="screen center hidden">
+  <div class="glass-card result">
+    <div class="big-icon" id="overIcon">🏁</div>
+    <h2 id="overTitle">بازی تمام شد</h2>
+    <div class="rank-list" id="overRanks"></div>
+    <div class="result-stats" id="overStats"></div>
+    <button class="btn primary" id="btnAgain">🔁 بازی دوباره</button>
+    <button class="btn ghost" id="btnHome">🏠 منوی اصلی</button>
+  </div>
+</div>
+
+<!-- جدول برترین‌ها -->
+<div id="boardScreen" class="screen hidden">
+  <header class="topbar">
+    <button class="icon-btn" data-back>◀️</button>
+    <h2>برترین‌ها</h2>
+    <span></span>
+  </header>
+  <div class="list" id="leaderList"></div>
+</div>
+
+<!-- پروفایل -->
+<div id="profileScreen" class="screen hidden">
+  <header class="topbar">
+    <button class="icon-btn" data-back>◀️</button>
+    <h2>پروفایل</h2>
+    <span></span>
+  </header>
+  <div class="list" id="profileBody"></div>
+</div>
+
+<!-- تنظیمات -->
+<div id="settingsScreen" class="screen hidden">
+  <header class="topbar">
+    <button class="icon-btn" data-back>◀️</button>
+    <h2>تنظیمات</h2>
+    <span></span>
+  </header>
+  <div class="list">
+    <button class="row-btn" id="setSound">🔊 صدا<small id="setSoundVal">روشن</small></button>
+    <button class="row-btn" id="setChat">💬 چت<small id="setChatVal">روشن</small></button>
+    <button class="row-btn" id="setTheme">🎨 پوسته<small id="setThemeVal">تیره</small></button>
+    <button class="row-btn" id="setLang">🌐 زبان<small id="setLangVal">فارسی</small></button>
+  </div>
+</div>
+
+<!-- پیام شناور -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="/board.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
