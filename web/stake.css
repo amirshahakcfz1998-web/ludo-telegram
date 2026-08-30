@@ -1,13 +1,43 @@
 /* ============================================================
-   لودو استار — سکه‌ها و پنجرهٔ انتخاب مبلغ میز
+   لودو استار — سکه‌ها، نوار بالا و پنجرهٔ انتخاب مبلغ میز
    ============================================================ */
 
-/* --- نشان سکه در نوار بالا --- */
+/* ---------- اصلاح نوار بالا ---------- */
+
+.ls-top { gap: 6px; }
+
+.ls-player {
+  flex: 0 1 auto;
+  max-width: 62%;
+  padding: 4px 10px 4px 4px;
+  gap: 7px;
+}
+.ls-pbody { flex: 1; min-width: 0; }
+.ls-pname { max-width: 100%; font-size: 12.5px; }
+.ls-xp { margin-top: 3px; height: 7px; }
+
+.ls-badge {
+  flex: none;
+  width: 24px; height: 24px;
+  font-size: 12px;
+}
+
+.ls-wallet { flex: none; gap: 4px; }
+.ls-pill { padding: 2px 9px 2px 3px; font-size: 11.5px; }
+.ls-pill i { width: 18px; height: 18px; font-size: 11px; }
+.ls-pill b { min-width: 38px; text-align: center; }
+
+.ls-gear { width: 34px; height: 34px; font-size: 16px; border-radius: 11px; }
+
+/* لوگوی پس‌زمینه محوتر تا با کارت‌ها قاطی نشود */
+.ls-logo { color: rgba(255,255,255,.055); margin: 0 0 -8px; }
+
+/* ---------- نشان سکه ---------- */
+
 .ls-pill.coin i {
   background: radial-gradient(circle at 34% 28%, #fff6c2, #e8a80c);
   box-shadow: 0 1px 3px rgba(0,0,0,.5), inset 0 -2px 3px rgba(160,90,0,.5);
 }
-.ls-pill.coin b { min-width: 34px; text-align: center; }
 .ls-pill.coin.bump { animation: lsxBump .5s ease; }
 @keyframes lsxBump {
   0% { transform: scale(1); }
@@ -15,7 +45,8 @@
   100% { transform: scale(1); }
 }
 
-/* --- پوشش تیره --- */
+/* ---------- پوشش تیره ---------- */
+
 .lsx-mask {
   position: fixed; inset: 0; z-index: 9990;
   display: flex; align-items: center; justify-content: center;
@@ -28,7 +59,8 @@
 .lsx-mask.hidden { display: none; }
 @keyframes lsxFade { from { opacity: 0; } to { opacity: 1; } }
 
-/* --- کارت --- */
+/* ---------- کارت پنجره ---------- */
+
 .lsx-modal {
   width: 100%; max-width: 380px;
   max-height: 88vh; overflow-y: auto;
@@ -59,7 +91,8 @@
   margin: -4px 0 10px;
 }
 
-/* --- موجودی --- */
+/* ---------- موجودی ---------- */
+
 .lsx-bal {
   display: flex; align-items: center; justify-content: center; gap: 7px;
   padding: 7px; margin-bottom: 12px;
@@ -70,7 +103,8 @@
   box-shadow: inset 0 1px 0 rgba(255,255,255,.1);
 }
 
-/* --- گزینه‌های مبلغ --- */
+/* ---------- گزینه‌های مبلغ ---------- */
+
 .lsx-stakes { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
 
 .lsx-stake {
@@ -108,7 +142,8 @@
 .lsx-stake.locked { opacity: .42; filter: grayscale(.6); }
 .lsx-stake.locked .fee { color: #ff9c9c; }
 
-/* --- جدول جوایز --- */
+/* ---------- جدول جوایز ---------- */
+
 .lsx-prizes {
   margin-top: 12px; padding: 9px 10px;
   border-radius: 14px;
@@ -129,7 +164,8 @@
 .lsx-prow b { color: #ffd85c; font-weight: 900; }
 .lsx-prow.zero b { color: rgba(255,255,255,.45); }
 
-/* --- دکمهٔ تأیید --- */
+/* ---------- دکمهٔ تأیید ---------- */
+
 .lsx-go {
   width: 100%; margin-top: 13px;
   border: 2px solid #ffe08a; border-radius: 16px;
@@ -142,7 +178,8 @@
 .lsx-go:active { transform: translateY(3px); }
 .lsx-go[disabled] { opacity: .5; filter: grayscale(.5); }
 
-/* --- نشان مبلغ در اتاق انتظار --- */
+/* ---------- نشان مبلغ در اتاق انتظار ---------- */
+
 .lsx-badge {
   display: inline-flex; align-items: center; gap: 6px;
   margin: 8px auto 0;
@@ -152,6 +189,8 @@
   border: 1.5px solid rgba(255,200,70,.4);
 }
 
+/* ---------- صفحه‌های کوچک ---------- */
+
 @media (max-height: 700px) {
   .lsx-stake { padding: 7px 4px 5px; }
   .lsx-stake .amt { font-size: 13px; }
@@ -159,4 +198,4 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .lsx-mask, .lsx-modal { animation: none; }
-  }
+}
