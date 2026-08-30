@@ -6,6 +6,7 @@ import { RATE, fail, json, ok, preflight, rateLimit, readJson } from './utils/he
 import { pickLang } from './config/texts';
 import { getRules, MODE_SEATS } from './config/rules';
 import { generateJoinCode, generateRoomId } from './game/rng';
+import { STAKE_OPTIONS, entryFee, normalizeStake } from './config/coins';
 
 export { GameRoom } from './do/gameroom';
 export { Hub } from './do/hub';
@@ -22,6 +23,9 @@ interface HubRpc {
   updateRoom(roomId: string, players: number, status: string): Promise<void>;
   roomByCode(code: string): Promise<Record<string, unknown> | null>;
   publicRooms(limit?: number): Promise<Record<string, unknown>[]>;
+  coinsOf(tgId: number): Promise<number>;
+  canAfford(tgId: number, amount: number): Promise<boolean>;
+  coinHistory(tgId: number, limit?: number): Promise<Record<string, unknown>[]>;
 }
 
 function hub(env: Env): HubRpc {
@@ -168,13 +172,27 @@ export default {
 
       switch (path) {
         case '/api/me':
-          return json({ ok: true, user, profile: await h.profileOf(tgId), startParam: auth.startParam ?? null });
+          return json({
+            ok: true,
+            user,
+            profile: await h.profileOf(tgId),
+            startParam: auth.startParam ?? null,
+            stakes: STAKE_OPTIONS,
+          });
 
         case '/api/profile':
           return json({ ok: true, profile: await h.profileOf(tgId) });
 
         case '/api/history':
           return json({ ok: true, history: await h.history(tgId, 15) });
+
+        case '/api/coins':
+          return json({
+            ok: true,
+            coins: await h.coinsOf(tgId),
+            stakes: STAKE_OPTIONS,
+            history: await h.coinHistory(tgId, 20),
+          });
 
         case '/api/leaderboard': {
           const page = Math.max(1, Number(url.searchParams.get('page') ?? 1));
@@ -209,10 +227,22 @@ export default {
           const rulesId = String(body.rulesId ?? 'classic');
           const aiLevel = String(body.aiLevel ?? 'NORMAL');
           const visibility = String(body.visibility ?? 'PRIVATE');
+          const teamMode = Boolean(body.teamMode ?? false);
           const rules = getRules(rulesId);
           const roomId = generateRoomId();
           const joinCode = generateJoinCode();
           const seats = MODE_SEATS[mode] ?? 4;
+
+          // مبلغ میز: بازی با ربات همیشه دوستانه است
+          const stake = mode === 'AI' ? 0 : normalizeStake(body.stake);
+          const fee = entryFee(stake, seats);
+
+          if (fee > 0 && !(await h.canAfford(tgId, fee))) {
+            return json(
+              { ok: false, error: 'NOT_ENOUGH_COINS', need: fee, coins: await h.coinsOf(tgId) },
+              402,
+            );
+          }
 
           await h.registerRoom({
             roomId,
@@ -223,6 +253,7 @@ export default {
             hostId: `u${tgId}`,
             seats,
             ttlMs: rules.timing.roomTtlMs,
+            stake,
           });
 
           const res = await roomCall(env, roomId, 'init', {
@@ -232,6 +263,8 @@ export default {
             visibility,
             rulesId,
             aiLevel,
+            stake,
+            teamMode,
             host: {
               tgId,
               name: displayName(auth.user),
@@ -241,18 +274,34 @@ export default {
             },
           });
           await h.setLastRoom(tgId, roomId);
-          return res ? json({ ...res, roomId, joinCode }) : fail('CREATE_FAILED', 500);
+          return res ? json({ ...res, roomId, joinCode, stake, fee }) : fail('CREATE_FAILED', 500);
         }
 
         case '/api/room/join': {
           let roomId = String(body.roomId ?? '');
           const code = String(body.code ?? '').toUpperCase();
+          let roomRow: Record<string, unknown> | null = null;
+
           if (!roomId && isValidJoinCode(code)) {
-            const room = await h.roomByCode(code);
-            if (!room) return fail('NOT_FOUND', 404);
-            roomId = String(room.room_id);
+            roomRow = await h.roomByCode(code);
+            if (!roomRow) return fail('NOT_FOUND', 404);
+            roomId = String(roomRow.room_id);
           }
           if (!roomId) return fail('NO_ROOM');
+
+          // بررسی موجودی پیش از ورود
+          const info = await roomCall<{ ok: boolean; summary?: Record<string, unknown> }>(env, roomId, 'summary');
+          const sum = info?.summary ?? null;
+          const stake = Number(sum?.stake ?? roomRow?.stake ?? 0);
+          const seats = Number(sum?.seatsTotal ?? roomRow?.seats ?? 4);
+          const fee = entryFee(stake, seats);
+
+          if (fee > 0 && !(await h.canAfford(tgId, fee))) {
+            return json(
+              { ok: false, error: 'NOT_ENOUGH_COINS', need: fee, coins: await h.coinsOf(tgId) },
+              402,
+            );
+          }
 
           const res = await roomCall<{ ok: boolean; summary?: { count: number; status: string } }>(
             env,
@@ -270,13 +319,14 @@ export default {
             await h.setLastRoom(tgId, roomId);
             await h.updateRoom(roomId, res.summary.count, res.summary.status);
           }
-          return res ? json({ ...res, roomId }) : fail('JOIN_FAILED', 500);
+          return res ? json({ ...res, roomId, stake, fee }) : fail('JOIN_FAILED', 500);
         }
 
         case '/api/room/start': {
           const roomId = String(body.roomId ?? '');
           if (!roomId) return fail('NO_ROOM');
-          const res = await roomCall(env, roomId, 'start', { tgId });
+          const res = await roomCall<Record<string, unknown>>(env, roomId, 'start', { tgId });
+          if (res && res.ok === false) return json(res, 402);
           return res ? json(res) : fail('START_FAILED', 500);
         }
 
