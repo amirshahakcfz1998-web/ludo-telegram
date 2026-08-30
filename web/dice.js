@@ -1,20 +1,14 @@
-/* لودو استار — تاس سه‌بعدی + موتور جلوه‌های گیم‌پلی (نسخهٔ ۳ / مرحلهٔ ۴)
-   بدون هیچ تغییری در index.html و app.js کار می‌کند.
-   بخش ۱: تاس واقعی با فیزیک پرتاب و صدا
-   بخش ۲: حرکت خانه‌به‌خانه، زدن مهره، خانهٔ نهایی، جشن برد */
+/* لودو استار — تاس سه‌بعدی + جایگاه تاس هر بازیکن + حرکت آرام مهره (نسخهٔ ۴ / مرحلهٔ ۵)
+   بدون تغییر در index.html و app.js
+   بخش ۱: تاس   بخش ۲: جلوه‌های گیم‌پلی   بخش ۳: جایگاه تاس بازیکنان */
 
-/* ==================================================================
-   بخش ۱ — تاس
-   ================================================================== */
+/* ================== بخش ۱ — تاس ================== */
 (function (global) {
   'use strict';
 
   var D = global.document;
   function $(id) { return D.getElementById(id); }
-
-  function A(name, opt) {
-    if (global.LudoAudio) { try { global.LudoAudio.play(name, opt); } catch (e) { } }
-  }
+  function A(n, o) { if (global.LudoAudio) { try { global.LudoAudio.play(n, o); } catch (e) { } } }
 
   var tg = global.Telegram && global.Telegram.WebApp ? global.Telegram.WebApp : null;
   function haptic(kind) {
@@ -88,8 +82,8 @@
     4: { rx: 90, ry: 0 }, 5: { rx: 0, ry: 90 }, 6: { rx: 0, ry: 180 }
   };
 
-  var SEGS = [[72, 340], [34, 250], [15, 190], [6, 130], [0, 240]];
-  var TOTAL = 1150, LOCK = 780;
+  var SEGS = [[70, 380], [33, 280], [14, 210], [6, 150], [0, 260]];
+  var TOTAL = 1280, LOCK = 880;
 
   var busy = false, pending = null, raf = 0, lastValue = 1;
 
@@ -124,7 +118,7 @@
     if (busy) { pending = value || 0; return; }
     busy = true;
 
-    var startX = -34 - Math.random() * 16;
+    var startX = -30 - Math.random() * 14;
     var freeX = 360 * 3 + 180, freeY = 360 * 2 + 90, freeZ = 360 * 2;
     var locked = null, segIdx = -1, t0 = 0;
 
@@ -151,7 +145,7 @@
       }
       if (idx > segIdx) {
         if (segIdx >= 0 && SEGS[segIdx][0] > 0) {
-          A('dice_bounce', { strength: Math.min(1, SEGS[segIdx][0] / 72) });
+          A('dice_bounce', { strength: Math.min(1, SEGS[segIdx][0] / 70) });
           haptic('light');
         }
         segIdx = idx;
@@ -189,10 +183,10 @@
       A('dice_settle');
       haptic('success');
       dice.classList.add('lb-land');
-      setTimeout(function () { dice.classList.remove('lb-land'); }, 420);
+      setTimeout(function () { dice.classList.remove('lb-land'); }, 480);
 
       busy = false;
-      if (pending !== null) { var nx = pending; pending = null; setTimeout(function () { roll(nx); }, 220); }
+      if (pending !== null) { var nx = pending; pending = null; setTimeout(function () { roll(nx); }, 240); }
     }
 
     if (raf) cancelAnimationFrame(raf);
@@ -224,7 +218,7 @@
     if (global.MutationObserver) {
       var sync = function () {
         var dice = $('dice');
-        var ready = !btn.disabled && btn.classList.contains('ready');
+        var ready = !btn.disabled;
         if (dice) dice.classList.toggle('lb-ready', ready);
         var fr = D.querySelector('.board-frame');
         if (fr) fr.classList.toggle('lb-myturn', ready);
@@ -306,13 +300,11 @@
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', start);
   else start();
 
-  global.LudoDice = { roll: roll, throwTo: roll };
+  global.LudoDice = { roll: roll, throwTo: roll, isBusy: function () { return busy; } };
 })(window);
 
 
-/* ==================================================================
-   بخش ۲ — موتور جلوه‌ها: حرکت خانه‌به‌خانه، زدن، خانهٔ نهایی، جشن
-   ================================================================== */
+/* ================== بخش ۲ — جلوه‌ها و حرکت آرام مهره ================== */
 (function (global) {
   'use strict';
 
@@ -321,34 +313,33 @@
   function A(n, o) { if (global.LudoAudio) { try { global.LudoAudio.play(n, o); } catch (e) { } } }
   function haptic(k) { if (global.LudoHaptic) global.LudoHaptic(k); }
 
-  var B = null;
-  var LOOKUP = {};          // رنگ → آرایهٔ {p,i,x,y}
+  var B = null, LOOKUP = {};
+
+  /* سرعت‌ها — برای کندتر/تندتر کردن همین سه عدد را تغییر بده */
+  var STEP_MS = 200;        // مدت هر خانه
+  var STEP_GAP = 30;        // توقف کوتاه بین خانه‌ها
+  var CAPTURE_MS = 760;     // پرتاب مهرهٔ زده‌شده
+  var EXIT_MS = 430;        // خروج از خانه
 
   var CSS = [
     '.tokens-layer .token{will-change:left,top,transform}',
-    '.token.lb-hop{transform:translateY(-9px) scale(1.09)!important;',
-    'transition:transform .07s ease-out!important;z-index:9!important}',
-    '.token.lb-squash{transform:translateY(0) scale(1.13,.88)!important;transition:transform .09s ease-out!important}',
-    '.token.lb-fly{z-index:14!important;transition:none!important;filter:drop-shadow(0 6px 8px rgba(6,1,18,.6))}',
-    '.token.lb-fin{animation:lbFin .95s cubic-bezier(.2,.9,.3,1.2)}',
-    '@keyframes lbFin{0%{transform:none}35%{transform:scale(1.28);filter:drop-shadow(0 0 16px rgba(255,222,120,.95)) brightness(1.55)}',
+    '.token.lb-squash{transform:scale(1.14,.86)!important;transition:transform .11s ease-out!important}',
+    '.token.lb-fly{z-index:14!important;transition:none!important;filter:drop-shadow(0 7px 9px rgba(6,1,18,.6))}',
+    '.token.lb-walk{z-index:9!important;transition:none!important}',
+    '.token.lb-fin{animation:lbFin 1.05s cubic-bezier(.2,.9,.3,1.2)}',
+    '@keyframes lbFin{0%{transform:none}35%{transform:scale(1.3);filter:drop-shadow(0 0 17px rgba(255,222,120,.95)) brightness(1.55)}',
     '100%{transform:none;filter:none}}',
-
     '.lb-ring{position:absolute;width:24%;height:24%;margin:-12% 0 0 -12%;border-radius:50%;',
-    'border:3px solid rgba(255,255,255,.92);pointer-events:none;animation:lbRing .52s ease-out forwards}',
-    '@keyframes lbRing{0%{transform:scale(.18);opacity:1}100%{transform:scale(1.75);opacity:0}}',
-
+    'border:3px solid rgba(255,255,255,.92);pointer-events:none;animation:lbRing .6s ease-out forwards}',
+    '@keyframes lbRing{0%{transform:scale(.18);opacity:1}100%{transform:scale(1.8);opacity:0}}',
     '.lb-glow{position:absolute;width:34%;height:34%;margin:-17% 0 0 -17%;border-radius:50%;pointer-events:none;',
-    'background:radial-gradient(circle,rgba(255,226,132,.85),rgba(255,196,60,0) 70%);animation:lbGlow .9s ease-out forwards}',
+    'background:radial-gradient(circle,rgba(255,226,132,.85),rgba(255,196,60,0) 70%);animation:lbGlow 1s ease-out forwards}',
     '@keyframes lbGlow{0%{transform:scale(.3);opacity:0}30%{transform:scale(1);opacity:1}100%{transform:scale(1.5);opacity:0}}',
-
     '.lb-spark{position:absolute;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;',
     'pointer-events:none;will-change:transform,opacity}',
-
-    '.lb-shake{animation:lbShake .34s ease-in-out}',
+    '.lb-shake{animation:lbShake .38s ease-in-out}',
     '@keyframes lbShake{0%,100%{transform:translate(0,0)}20%{transform:translate(-6px,3px)}',
     '45%{transform:translate(5px,-4px)}70%{transform:translate(-4px,-2px)}}',
-
     '#lbConfetti{position:fixed;left:0;top:0;width:100%;height:100%;z-index:120;pointer-events:none}',
     '.board-frame.lb-myturn{box-shadow:0 0 0 2px rgba(255,214,107,.75),0 0 28px 7px rgba(255,214,107,.32)!important}'
   ].join('');
@@ -361,10 +352,7 @@
     (D.head || D.documentElement).appendChild(st);
   }
 
-  /* ---------- نقشهٔ مکان‌ها ---------- */
-
   function buildLookup() {
-    if (!B) return;
     B.COLORS.forEach(function (c) {
       var arr = [];
       for (var p = -1; p <= B.POS_FINISH; p++) {
@@ -383,8 +371,7 @@
     if (!arr || !cell) return null;
     var best = null, bd = 1e9;
     for (var k = 0; k < arr.length; k++) {
-      var dx = arr[k].x - cell.x, dy = arr[k].y - cell.y;
-      var d = dx * dx + dy * dy;
+      var dx = arr[k].x - cell.x, dy = arr[k].y - cell.y, d = dx * dx + dy * dy;
       if (d < bd) { bd = d; best = arr[k]; }
     }
     return (bd <= 1.2) ? best : null;
@@ -405,88 +392,93 @@
 
   function colorOf(el) {
     var cn = ' ' + el.className + ' ';
-    for (var i = 0; i < B.COLORS.length; i++) {
-      if (cn.indexOf(' ' + B.COLORS[i] + ' ') !== -1) return B.COLORS[i];
-    }
+    for (var i = 0; i < B.COLORS.length; i++) if (cn.indexOf(' ' + B.COLORS[i] + ' ') !== -1) return B.COLORS[i];
     return null;
   }
 
-  /* ---------- راه‌رفتن خانه‌به‌خانه ---------- */
+  function release(el, oldTr) {
+    el.style.transform = '';
+    el.classList.remove('lb-walk', 'lb-fly');
+    el.classList.add('lb-squash');
+    setTimeout(function () {
+      el.classList.remove('lb-squash');
+      el.style.transition = oldTr;
+      el.__lbBusy = false;
+      el.__lbCell = cellFromStyle(el);
+    }, 120);
+  }
 
+  /* ---------- راه‌رفتن خانه‌به‌خانه، آرام و نرم ---------- */
   function walk(el, color, fromP, toP, slot) {
     var n = toP - fromP;
-    var per = Math.max(72, Math.min(140, 150 - 8 * n));
-    var cur = fromP;
+    if (n <= 0) return;
+
+    var cells = [], j;
+    for (j = 0; j <= n; j++) {
+      var c = B.cellOf(color, fromP + j, slot);
+      cells.push(c || cells[cells.length - 1]);
+    }
 
     el.__lbBusy = true;
     var oldTr = el.style.transition;
     el.style.transition = 'none';
+    el.classList.add('lb-walk');
 
-    function step() {
-      cur++;
-      var cell = B.cellOf(color, cur, slot);
-      if (cell) put(el, cell);
-
-      el.classList.add('lb-hop');
-      A('token_move', { step: cur - fromP, total: n });
-      setTimeout(function () { el.classList.remove('lb-hop'); }, Math.round(per * 0.55));
-
-      if (cur >= toP) { setTimeout(land, per); return; }
-      setTimeout(step, per);
-    }
-
-    function land() {
-      el.classList.add('lb-squash');
-      setTimeout(function () {
-        el.classList.remove('lb-squash');
-        el.style.transition = oldTr;
-        el.__lbBusy = false;
-        el.__lbCell = cellFromStyle(el);
-      }, 110);
-      haptic('light');
-      if (toP >= B.POS_FINISH || toP >= B.HOME_ENTRY + 5) {
-        el.classList.add('lb-fin');
-        setTimeout(function () { el.classList.remove('lb-fin'); }, 950);
+    j = 0;
+    function seg() {
+      j++;
+      if (j > n) {
+        release(el, oldTr);
+        haptic('light');
+        if (toP >= B.HOME_ENTRY + 5 || toP >= B.POS_FINISH) {
+          el.classList.add('lb-fin');
+          setTimeout(function () { el.classList.remove('lb-fin'); }, 1050);
+        }
+        return;
       }
-    }
 
-    step();
+      var a = cells[j - 1], b = cells[j], t0 = 0;
+      A('token_move', { step: j, total: n });
+
+      function fr(now) {
+        if (!t0) t0 = now;
+        var t = Math.min(1, (now - t0) / STEP_MS);
+        var e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+        var lift = 0.32 * Math.sin(Math.PI * t);
+        put(el, { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e - lift });
+        el.style.transform = 'scale(' + (1 + 0.12 * Math.sin(Math.PI * t)).toFixed(3) + ')';
+        if (t < 1) { requestAnimationFrame(fr); return; }
+        el.style.transform = '';
+        setTimeout(seg, STEP_GAP);
+      }
+      requestAnimationFrame(fr);
+    }
+    seg();
   }
 
-  /* ---------- پرتاب قوسی (زدن مهره یا خروج از خانه) ---------- */
-
+  /* ---------- پرتاب قوسی ---------- */
   function arc(el, fromCell, toCell, dur, spin) {
     el.__lbBusy = true;
     var oldTr = el.style.transition;
     el.style.transition = 'none';
     el.classList.add('lb-fly');
-
-    var t0 = 0, lift = spin ? 2.1 : 1.1;
+    var t0 = 0, lift = spin ? 2.4 : 1.2;
 
     function frame(now) {
       if (!t0) t0 = now;
       var t = Math.min(1, (now - t0) / dur);
-      var x = fromCell.x + (toCell.x - fromCell.x) * t;
-      var y = fromCell.y + (toCell.y - fromCell.y) * t - 4 * lift * t * (1 - t);
-      put(el, { x: x, y: y });
-      if (spin) el.style.transform = 'rotate(' + (t * 540).toFixed(0) + 'deg) scale(' + (1 + 0.25 * Math.sin(Math.PI * t)).toFixed(2) + ')';
+      var e = spin ? t : (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+      put(el, {
+        x: fromCell.x + (toCell.x - fromCell.x) * e,
+        y: fromCell.y + (toCell.y - fromCell.y) * e - 4 * lift * t * (1 - t)
+      });
+      if (spin) el.style.transform = 'rotate(' + (t * 720).toFixed(0) + 'deg) scale(' + (1 + 0.28 * Math.sin(Math.PI * t)).toFixed(2) + ')';
       if (t < 1) { requestAnimationFrame(frame); return; }
-
-      el.style.transform = '';
-      el.classList.remove('lb-fly');
-      el.classList.add('lb-squash');
       haptic(spin ? 'heavy' : 'light');
-      setTimeout(function () {
-        el.classList.remove('lb-squash');
-        el.style.transition = oldTr;
-        el.__lbBusy = false;
-        el.__lbCell = cellFromStyle(el);
-      }, 120);
+      release(el, oldTr);
     }
     requestAnimationFrame(frame);
   }
-
-  /* ---------- رصد جابه‌جایی مهره‌ها ---------- */
 
   function watchTokens() {
     var layer = $('tokensLayer');
@@ -506,7 +498,7 @@
         if (!was) continue;
 
         var dx = now.x - was.x, dy = now.y - was.y;
-        if (dx * dx + dy * dy < 0.5) continue;           // فقط جابه‌جایی پشته
+        if (dx * dx + dy * dy < 0.5) continue;
 
         var color = colorOf(el);
         if (!color) continue;
@@ -514,22 +506,18 @@
         if (!a || !b) continue;
 
         if (b.p === B.POS_BASE && a.p !== B.POS_BASE) {
-          el.__lbCell = now;
-          arc(el, was, now, 560, true);                  // زده شد → پرتاب به خانه
+          arc(el, was, now, CAPTURE_MS, true);
         } else if (a.p === B.POS_BASE && b.p >= 0) {
-          arc(el, was, now, 330, false);                 // خروج از خانه
+          arc(el, was, now, EXIT_MS, false);
         } else if (b.p > a.p && b.p - a.p <= 6) {
-          el.__lbCell = now;
           put(el, was);
-          walk(el, color, a.p, b.p, b.i);                // راه‌رفتن خانه‌به‌خانه
+          walk(el, color, a.p, b.p, b.i);
         } else {
-          arc(el, was, now, 380, false);
+          arc(el, was, now, 480, false);
         }
       }
     }).observe(layer, { attributes: true, attributeFilter: ['style'], subtree: true });
   }
-
-  /* ---------- جلوه‌های ضربه و خانهٔ نهایی ---------- */
 
   function sparks(left, top, colors, count, spread) {
     var layer = $('fxLayer');
@@ -545,12 +533,12 @@
         var a = (Math.PI * 2 * idx) / count + Math.random() * 0.5;
         var dist = spread * (0.6 + Math.random() * 0.7);
         requestAnimationFrame(function () {
-          node.style.transition = 'transform .62s cubic-bezier(.2,.7,.3,1), opacity .62s ease-out';
+          node.style.transition = 'transform .68s cubic-bezier(.2,.7,.3,1), opacity .68s ease-out';
           node.style.transform = 'translate(' + (Math.cos(a) * dist).toFixed(0) + 'px,' +
             (Math.sin(a) * dist + 14).toFixed(0) + 'px) scale(.25)';
           node.style.opacity = '0';
         });
-        setTimeout(function () { if (node.parentNode) node.parentNode.removeChild(node); }, 700);
+        setTimeout(function () { if (node.parentNode) node.parentNode.removeChild(node); }, 760);
       })(s, i);
     }
   }
@@ -563,13 +551,12 @@
     el.style.left = left + '%';
     el.style.top = top + '%';
     layer.appendChild(el);
-    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 950);
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 1050);
   }
 
   function watchFx() {
     var layer = $('fxLayer');
     if (!layer || !global.MutationObserver) return;
-
     new MutationObserver(function (recs) {
       for (var r = 0; r < recs.length; r++) {
         var add = recs[r].addedNodes;
@@ -578,17 +565,14 @@
           if (!n || n.nodeType !== 1 || n.className !== 'fx') continue;
           var txt = n.textContent || '';
           var l = parseFloat(n.style.left) || 50, t = parseFloat(n.style.top) || 50;
-
           if (txt.indexOf('💥') !== -1) {
-            A('token_capture');
-            haptic('heavy');
+            A('token_capture'); haptic('heavy');
             overlay('lb-ring', l, t);
             sparks(l, t, ['#fff3c4', '#ff9a3c', '#ff4d63'], 12, 46);
             var fr = D.querySelector('.board-frame');
             if (fr) { fr.classList.remove('lb-shake'); void fr.offsetWidth; fr.classList.add('lb-shake'); }
           } else if (txt.indexOf('🏠') !== -1) {
-            A('token_finish');
-            haptic('success');
+            A('token_finish'); haptic('success');
             overlay('lb-glow', l, t);
             sparks(l, t, ['#ffe58a', '#ffc32e', '#ffffff'], 14, 52);
           }
@@ -597,21 +581,16 @@
     }).observe(layer, { childList: true });
   }
 
-  /* ---------- کانفتی برد ---------- */
-
   function confetti() {
     var old = $('lbConfetti');
     if (old && old.parentNode) old.parentNode.removeChild(old);
-
     var cv = D.createElement('canvas');
     cv.id = 'lbConfetti';
     D.body.appendChild(cv);
     var w = cv.width = cv.offsetWidth, h = cv.height = cv.offsetHeight;
     var ctx = cv.getContext('2d');
     if (!ctx) return;
-
-    var cols = ['#ffc32e', '#ff4d63', '#22c07d', '#3b9bff', '#ffffff', '#b06bff'];
-    var ps = [];
+    var cols = ['#ffc32e', '#ff4d63', '#22c07d', '#3b9bff', '#ffffff', '#b06bff'], ps = [];
     for (var i = 0; i < 110; i++) {
       ps.push({
         x: Math.random() * w, y: -20 - Math.random() * h * 0.6,
@@ -620,7 +599,6 @@
         va: (Math.random() - 0.5) * 0.28, c: cols[i % cols.length]
       });
     }
-
     var t0 = 0;
     function frame(now) {
       if (!t0) t0 = now;
@@ -631,8 +609,7 @@
         p.x += p.vx; p.y += p.vy; p.a += p.va; p.vy += 0.03;
         ctx.save();
         ctx.globalAlpha = Math.max(0, 1 - el / 3200);
-        ctx.translate(p.x, p.y);
-        ctx.rotate(p.a);
+        ctx.translate(p.x, p.y); ctx.rotate(p.a);
         ctx.fillStyle = p.c;
         ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2);
         ctx.restore();
@@ -653,16 +630,139 @@
     }).observe(over, { attributes: true, attributeFilter: ['class'] });
   }
 
-  /* ---------- راه‌اندازی ---------- */
-
   function start() {
     B = global.LudoBoard;
     if (!B || !B.cellOf) { setTimeout(start, 250); return; }
+    injectCss(); buildLookup(); watchTokens(); watchFx(); watchVictory();
+  }
+
+  if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', start);
+  else start();
+})(window);
+
+
+/* ================== بخش ۳ — جایگاه تاس هر بازیکن ================== */
+(function (global) {
+  'use strict';
+
+  var D = global.document;
+  function $(id) { return D.getElementById(id); }
+
+  var COLORS = ['RED', 'GREEN', 'YELLOW', 'BLUE'];
+  var SPOT = {                        // مرکز خانهٔ هر رنگ روی تخته
+    RED: { l: 22, t: 22 }, GREEN: { l: 78, t: 22 },
+    YELLOW: { l: 78, t: 78 }, BLUE: { l: 22, t: 78 }
+  };
+  var TINT = { RED: '#f2314c', GREEN: '#22c07d', YELLOW: '#ffc32e', BLUE: '#3b9bff' };
+
+  var CSS = [
+    '.lb-pad{position:absolute;width:23%;height:23%;margin:-11.5% 0 0 -11.5%;z-index:13;',
+    'display:flex;align-items:center;justify-content:center;border-radius:22px;',
+    'pointer-events:none;opacity:0;transition:opacity .25s ease,transform .25s ease;transform:scale(.86)}',
+    '.lb-pad.live{opacity:1;transform:scale(1)}',
+    '.lb-pad::before{content:"";position:absolute;inset:6%;border-radius:20px;',
+    'background:rgba(10,3,26,.34);border:2px solid rgba(255,255,255,.18);',
+    'box-shadow:inset 0 2px 8px rgba(0,0,0,.35)}',
+    '.lb-pad.turn{pointer-events:auto}',
+    '.lb-pad.turn::before{border-color:var(--lbTint);box-shadow:0 0 16px 3px var(--lbTint),inset 0 2px 8px rgba(0,0,0,.3);',
+    'animation:lbPadPulse 1.3s ease-in-out infinite}',
+    '@keyframes lbPadPulse{0%,100%{opacity:.72}50%{opacity:1}}',
+    '.lb-pad .lb-mini{width:34%;height:34%;border-radius:8px;',
+    'background:linear-gradient(150deg,#fffdf6,#cbb9ec);opacity:.42;box-shadow:0 2px 5px rgba(0,0,0,.35)}',
+    '.lb-pad.turn .lb-mini{display:none}',
+    '#dice.lb-onboard{transform:scale(.58);z-index:14}',
+    '#lbDiceSlot{width:74px;height:74px;opacity:0;pointer-events:none}'
+  ].join('');
+
+  function injectCss() {
+    if ($('lb-pad-style')) return;
+    var st = D.createElement('style');
+    st.id = 'lb-pad-style';
+    st.textContent = CSS;
+    (D.head || D.documentElement).appendChild(st);
+  }
+
+  var pads = {}, moving = false;
+
+  function buildPads() {
+    var board = $('board');
+    if (!board || pads.RED) return;
+    COLORS.forEach(function (c) {
+      var p = D.createElement('div');
+      p.className = 'lb-pad ' + c;
+      p.style.left = SPOT[c].l + '%';
+      p.style.top = SPOT[c].t + '%';
+      p.style.setProperty('--lbTint', TINT[c]);
+      p.innerHTML = '<div class="lb-mini"></div>';
+      p.addEventListener('click', function () {
+        var btn = $('btnRoll');
+        if (btn && !btn.disabled) btn.click();
+      });
+      board.appendChild(p);
+      pads[c] = p;
+    });
+
+    var area = D.querySelector('.dice-area');
+    if (area && !$('lbDiceSlot')) {
+      var slot = D.createElement('div');
+      slot.id = 'lbDiceSlot';
+      area.insertBefore(slot, area.firstChild);
+    }
+  }
+
+  function activeColor() {
+    var d = D.querySelector('#playersStrip .pstrip.active .dot');
+    if (!d) return null;
+    var cn = ' ' + d.className + ' ';
+    for (var i = 0; i < COLORS.length; i++) if (cn.indexOf(' ' + COLORS[i] + ' ') !== -1) return COLORS[i];
+    return null;
+  }
+
+  function presentColors() {
+    var out = {}, dots = D.querySelectorAll('#playersStrip .pstrip .dot');
+    for (var i = 0; i < dots.length; i++) {
+      var cn = ' ' + dots[i].className + ' ';
+      for (var k = 0; k < COLORS.length; k++) if (cn.indexOf(' ' + COLORS[k] + ' ') !== -1) out[COLORS[k]] = true;
+    }
+    return out;
+  }
+
+  function sync() {
+    buildPads();
+    if (!pads.RED) return;
+
+    var here = presentColors();
+    var act = activeColor();
+
+    COLORS.forEach(function (c) {
+      pads[c].classList.toggle('live', !!here[c]);
+      pads[c].classList.toggle('turn', c === act);
+    });
+
+    if (!act) return;
+    var dice = $('dice');
+    if (!dice) return;
+
+    if (dice.parentNode === pads[act]) return;
+    if (global.LudoDice && global.LudoDice.isBusy && global.LudoDice.isBusy()) {
+      if (!moving) { moving = true; setTimeout(function () { moving = false; sync(); }, 400); }
+      return;
+    }
+
+    dice.classList.add('lb-onboard');
+    pads[act].appendChild(dice);
+  }
+
+  function start() {
     injectCss();
-    buildLookup();
-    watchTokens();
-    watchFx();
-    watchVictory();
+    buildPads();
+    var strip = $('playersStrip');
+    if (strip && global.MutationObserver) {
+      new MutationObserver(function () { sync(); })
+        .observe(strip, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    }
+    setInterval(sync, 900);
+    sync();
   }
 
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', start);
