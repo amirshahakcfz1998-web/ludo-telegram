@@ -1,9 +1,30 @@
 /* ============================================================
-   لودو استار — لایهٔ ارتقای تعامل
-   تاس سه‌بعدی + انیمیشن مهره‌ها + اتصال دکمه‌های لابی جدید
+   لودو استار — لایهٔ ارتقا
+   تاس سه‌بعدی + انیمیشن مهره + دکمه‌های لابی + سیستم سکه
    ============================================================ */
 (function () {
   'use strict';
+
+  function $(id) { return document.getElementById(id); }
+  var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+
+  function haptic(kind) {
+    try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred(kind || 'light'); }
+    catch (e) { /* ignore */ }
+  }
+
+  function num(n) {
+    n = Math.max(0, Math.floor(Number(n) || 0));
+    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  /* ---------- بارگذاری استایل سکه ---------- */
+  (function () {
+    var l = document.createElement('link');
+    l.rel = 'stylesheet';
+    l.href = '/stake.css';
+    document.head.appendChild(l);
+  })();
 
   /* ---------- اصلاحیه‌های CSS ---------- */
   var fix = document.createElement('style');
@@ -16,12 +37,271 @@
   document.head.appendChild(fix);
 
   /* ============================================================
-     ۰) اتصال دکمه‌های لابی جدید به منطق app.js
-     app.js فقط دکمه‌های کلاس .tile را می‌شناسد، پس یک نسخهٔ
-     نامرئی از آن‌ها می‌سازیم و کلیک‌ها را به آن هدایت می‌کنیم.
+     ۰) اقتصاد سکه
      ============================================================ */
+
+  var COIN = {
+    balance: 0,
+    stakes: [0, 500, 2000, 5000, 10000, 25000],
+    chosen: parseInt(localStorage.getItem('ls_stake') || '0', 10) || 0,
+    seats: 4
+  };
+
+  var SHARES = {
+    2: [1],
+    3: [0.65, 0.35],
+    4: [0.625, 0.25, 0.125]
+  };
+
+  function entryFee(stake, seats) {
+    if (stake <= 0 || seats <= 0) return 0;
+    return Math.floor(stake / seats);
+  }
+
+  function potOf(stake, seats) { return entryFee(stake, seats) * seats; }
+
+  function prizeList(stake, seats) {
+    var pot = potOf(stake, seats);
+    var out = [];
+    var sh = SHARES[seats] || SHARES[2];
+    var given = 0, i;
+    for (i = 0; i < sh.length; i++) {
+      var a = Math.floor(pot * sh[i]);
+      out.push(a); given += a;
+    }
+    if (out.length && given < pot) out[0] += pot - given;
+    while (out.length < seats) out.push(0);
+    return out;
+  }
+
+  function stakeLabel(s) {
+    if (s <= 0) return 'دوستانه';
+    if (s >= 1000) return (s / 1000) + 'k';
+    return String(s);
+  }
+
+  function setBalance(v) {
+    if (typeof v !== 'number' || !isFinite(v)) return;
+    var changed = v !== COIN.balance;
+    COIN.balance = v;
+    var el = $('menuCoins');
+    if (el) {
+      el.textContent = num(v);
+      if (changed && el.parentNode) {
+        var p = el.parentNode;
+        p.classList.remove('bump');
+        void p.offsetWidth;
+        p.classList.add('bump');
+      }
+    }
+    var bal = document.querySelector('.lsx-bal b');
+    if (bal) bal.textContent = num(v);
+    paintStakes();
+  }
+
+  function refreshCoins() {
+    var init = (tg && tg.initData) ? tg.initData : '';
+    if (!init) return;
+    nativeFetch('/api/coins', { headers: { 'X-Init-Data': init } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok) return;
+        if (Array.isArray(d.stakes) && d.stakes.length) COIN.stakes = d.stakes;
+        setBalance(Number(d.coins) || 0);
+      })
+      .catch(function () { /* ignore */ });
+  }
+
+  /* ---------- تزریق مبلغ به درخواست ساخت اتاق ---------- */
+
+  var nativeFetch = window.fetch.bind(window);
+
+  window.fetch = function (input, init) {
+    var url = '';
+    try { url = (typeof input === 'string') ? input : (input && input.url) || ''; }
+    catch (e) { url = ''; }
+
+    if (init && init.body && url.indexOf('/api/room/create') !== -1) {
+      try {
+        var b = JSON.parse(init.body);
+        if (b.mode !== 'AI') b.stake = COIN.chosen;
+        else b.stake = 0;
+        init = Object.assign({}, init, { body: JSON.stringify(b) });
+      } catch (e) { /* ignore */ }
+    }
+
+    var p = nativeFetch(input, init);
+
+    if (url.indexOf('/api/me') !== -1 || url.indexOf('/api/room/') !== -1) {
+      p.then(function (res) {
+        try {
+          res.clone().json().then(function (d) {
+            if (!d) return;
+            if (d.user && typeof d.user.coins === 'number') setBalance(d.user.coins);
+            if (typeof d.coins === 'number') setBalance(d.coins);
+            if (Array.isArray(d.stakes) && d.stakes.length) COIN.stakes = d.stakes;
+            if (d.ok === false && d.error === 'NOT_ENOUGH_COINS') {
+              alertCoins(d.need || 0);
+            }
+          }).catch(function () { /* ignore */ });
+        } catch (e) { /* ignore */ }
+        return res;
+      }).catch(function () { /* ignore */ });
+    }
+
+    return p;
+  };
+
+  function alertCoins(need) {
+    var t = $('toast');
+    if (!t) return;
+    t.textContent = 'سکه کافی نداری — ورودی این میز ' + num(need) + ' سکه است';
+    t.classList.remove('hidden');
+    setTimeout(function () { t.classList.add('hidden'); }, 2600);
+  }
+
+  /* ============================================================
+     ۱) پنجرهٔ انتخاب مبلغ میز
+     ============================================================ */
+
+  var mask = null, grid = null, prizeBox = null, goBtn = null, subEl = null;
+  var pendingAct = null;
+
+  function buildModal() {
+    if (mask) return;
+    mask = document.createElement('div');
+    mask.className = 'lsx-mask hidden';
+    mask.innerHTML =
+      '<div class="lsx-modal">' +
+        '<div class="lsx-head">' +
+          '<b>مبلغ میز را انتخاب کن</b>' +
+          '<button class="lsx-x" type="button">✖</button>' +
+        '</div>' +
+        '<div class="lsx-sub"></div>' +
+        '<div class="lsx-bal">🪙 موجودی تو: <b>0</b> سکه</div>' +
+        '<div class="lsx-stakes"></div>' +
+        '<div class="lsx-prizes"><h4>تقسیم جایزه</h4><div class="lsx-plist"></div></div>' +
+        '<button class="lsx-go" type="button">▶️ شروع میز</button>' +
+      '</div>';
+    document.body.appendChild(mask);
+
+    grid = mask.querySelector('.lsx-stakes');
+    prizeBox = mask.querySelector('.lsx-plist');
+    goBtn = mask.querySelector('.lsx-go');
+    subEl = mask.querySelector('.lsx-sub');
+
+    mask.querySelector('.lsx-x').addEventListener('click', closeModal);
+    mask.addEventListener('click', function (e) { if (e.target === mask) closeModal(); });
+
+    grid.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('.lsx-stake') : null;
+      if (!b || b.classList.contains('locked')) return;
+      COIN.chosen = parseInt(b.getAttribute('data-v'), 10) || 0;
+      localStorage.setItem('ls_stake', String(COIN.chosen));
+      haptic('light');
+      paintStakes();
+    });
+
+    goBtn.addEventListener('click', function () {
+      var act = pendingAct;
+      closeModal();
+      if (act) startLegacy(act);
+    });
+  }
+
+  function paintStakes() {
+    if (!grid) return;
+    grid.innerHTML = '';
+    var seats = COIN.seats;
+
+    for (var i = 0; i < COIN.stakes.length; i++) {
+      var v = COIN.stakes[i];
+      var fee = entryFee(v, seats);
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'lsx-stake' + (v === 0 ? ' free' : '');
+      b.setAttribute('data-v', String(v));
+      if (v === COIN.chosen) b.className += ' on';
+      if (fee > COIN.balance) b.className += ' locked';
+
+      b.innerHTML = v === 0
+        ? '<span class="amt">دوستانه</span><span class="fee">بدون سکه</span>'
+        : '<span class="amt">🪙 ' + num(v) + '</span>' +
+          '<span class="fee">' + (fee > COIN.balance ? 'سکه کم داری' : 'ورودی ' + num(fee)) + '</span>';
+
+      grid.appendChild(b);
+    }
+
+    // اگر مبلغ انتخاب‌شده قابل پرداخت نیست، برگرد به دوستانه
+    if (entryFee(COIN.chosen, seats) > COIN.balance) {
+      COIN.chosen = 0;
+      var f = grid.querySelector('.lsx-stake[data-v="0"]');
+      if (f) f.classList.add('on');
+    }
+
+    paintPrizes();
+  }
+
+  function paintPrizes() {
+    if (!prizeBox) return;
+    var seats = COIN.seats;
+    var stake = COIN.chosen;
+    var fee = entryFee(stake, seats);
+
+    if (subEl) {
+      subEl.textContent = seats + ' نفره — هر بازیکن ' +
+        (fee > 0 ? num(fee) + ' سکه می‌گذارد' : 'چیزی نمی‌پردازد');
+    }
+
+    if (stake <= 0) {
+      prizeBox.innerHTML = '<div class="lsx-prow zero"><span>بازی دوستانه</span><b>بدون سکه</b></div>';
+      if (goBtn) goBtn.disabled = false;
+      return;
+    }
+
+    var list = prizeList(stake, seats);
+    var icons = ['🥇 نفر اول', '🥈 نفر دوم', '🥉 نفر سوم', '4️⃣ نفر چهارم'];
+    var html = '';
+    for (var i = 0; i < seats; i++) {
+      var a = list[i] || 0;
+      html += '<div class="lsx-prow' + (a ? '' : ' zero') + '">' +
+              '<span>' + icons[i] + '</span><b>' + (a ? '🪙 ' + num(a) : '—') + '</b></div>';
+    }
+    if (seats === 4) {
+      html += '<div class="lsx-prow"><span>حالت تیمی</span><b>🪙 ' +
+              num(Math.floor(potOf(stake, seats) / 2)) + ' برای هر نفر تیم برنده</b></div>';
+    }
+    prizeBox.innerHTML = html;
+    if (goBtn) goBtn.disabled = fee > COIN.balance;
+  }
+
+  function openModal(act, seats) {
+    buildModal();
+    pendingAct = act;
+    COIN.seats = seats;
+    paintStakes();
+    mask.classList.remove('hidden');
+    refreshCoins();
+    haptic('light');
+  }
+
+  function closeModal() {
+    if (mask) mask.classList.add('hidden');
+    pendingAct = null;
+  }
+
+  /* ============================================================
+     ۲) اتصال دکمه‌های لابی به منطق app.js
+     ============================================================ */
+
+  var legacy = {};
+
+  function startLegacy(act) {
+    if (legacy[act]) legacy[act].click();
+  }
+
   (function wireLobby() {
-    var menu = document.getElementById('menuScreen');
+    var menu = $('menuScreen');
     if (!menu) return;
 
     var acts = ['ai', 'create2', 'create4', 'join', 'board', 'profile'];
@@ -29,7 +309,6 @@
     box.className = 'menu-grid ls-legacy';
     box.setAttribute('aria-hidden', 'true');
 
-    var legacy = {};
     for (var i = 0; i < acts.length; i++) {
       var b = document.createElement('button');
       b.className = 'tile';
@@ -49,36 +328,70 @@
       var act = btn.getAttribute('data-act');
       if (!act || !legacy[act]) return;
 
-      // جلوی اجرای دوباره را می‌گیریم و فقط یک بار عمل می‌کنیم
       e.preventDefault();
       e.stopPropagation();
 
-      // نشان دادن دکمهٔ فعال در نوار پایین
       if (btn.classList.contains('ls-nav-btn')) {
         var navs = document.querySelectorAll('.ls-nav-btn');
         for (var n = 0; n < navs.length; n++) navs[n].classList.remove('active');
         btn.classList.add('active');
       }
 
-      try {
-        var tg = window.Telegram && window.Telegram.WebApp;
-        if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-      } catch (err) { /* ignore */ }
+      haptic('light');
 
-      legacy[act].click();
+      if (act === 'create2') { openModal(act, 2); return; }
+      if (act === 'create4') { openModal(act, 4); return; }
+      if (act === 'ai') COIN.chosen = 0;
+
+      startLegacy(act);
     }, true);
   })();
 
-  function $(id) { return document.getElementById(id); }
+  /* ---------- تازه‌سازی سکه هنگام دیدن منو ---------- */
+  (function () {
+    var menu = $('menuScreen');
+    if (!menu) return;
+    var wasHidden = menu.classList.contains('hidden');
+    new MutationObserver(function () {
+      var hid = menu.classList.contains('hidden');
+      if (wasHidden && !hid) refreshCoins();
+      wasHidden = hid;
+    }).observe(menu, { attributes: true, attributeFilter: ['class'] });
+    if (!wasHidden) refreshCoins();
+    setTimeout(refreshCoins, 1200);
+  })();
+
+  /* ---------- نشان مبلغ در اتاق انتظار ---------- */
+  (function () {
+    var lob = $('lobbyScreen');
+    var code = $('lobbyCode');
+    if (!lob || !code) return;
+    var badge = document.createElement('div');
+    badge.className = 'lsx-badge';
+    badge.style.display = 'none';
+    if (code.parentNode) code.parentNode.appendChild(badge);
+
+    new MutationObserver(function () {
+      if (lob.classList.contains('hidden')) return;
+      if (COIN.chosen > 0) {
+        badge.textContent = '🪙 میز ' + stakeLabel(COIN.chosen) + ' — ورودی ' +
+                            num(entryFee(COIN.chosen, COIN.seats)) + ' سکه';
+        badge.style.display = '';
+      } else {
+        badge.textContent = '🤝 میز دوستانه';
+        badge.style.display = '';
+      }
+    }).observe(lob, { attributes: true, attributeFilter: ['class'] });
+  })();
+
+  /* ============================================================
+     ۳) تاس سه‌بعدی
+     ============================================================ */
 
   var dice = $('dice');
   var cube = $('diceCube');
   var valEl = $('diceValue');
   var layer = $('tokensLayer');
-
-  /* ============================================================
-     ۱) تاس سه‌بعدی
-     ============================================================ */
 
   var FACE = {
     1: { x: 0,   y: 0 },
@@ -89,10 +402,7 @@
     6: { x: 90,  y: 0 }
   };
 
-  var rolling = false;
-  var rollStart = 0;
-  var landTimer = null;
-  var stopTimer = null;
+  var rolling = false, rollStart = 0, landTimer = null, stopTimer = null;
 
   function setFace(v, animated) {
     var f = FACE[v] || FACE[1];
@@ -110,7 +420,7 @@
     void dice.offsetWidth;
     dice.classList.add('rolling');
     clearTimeout(stopTimer);
-    stopTimer = setTimeout(function () { land(null); }, 3000);
+    stopTimer = setTimeout(function () { land(lastVal || 1); }, 3000);
   }
 
   function land(value) {
@@ -123,15 +433,11 @@
       setFace(value, true);
       dice.classList.add('landed');
       setTimeout(function () { dice.classList.remove('landed'); }, 320);
-      try {
-        var tg = window.Telegram && window.Telegram.WebApp;
-        if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('rigid');
-      } catch (e) { /* ignore */ }
+      haptic('rigid');
     }, wait);
   }
 
-  var lastVal = 0;
-  var settle = null;
+  var lastVal = 0, settle = null;
 
   function readValue() {
     var n = parseInt((valEl.textContent || '').replace(/[^\d]/g, ''), 10);
@@ -171,7 +477,7 @@
   }
 
   /* ============================================================
-     ۲) انیمیشن مهره‌ها
+     ۴) انیمیشن مهره‌ها
      ============================================================ */
 
   function flash(el, cls, ms) {
@@ -202,11 +508,11 @@
 
         if (m.type === 'attributes' && m.attributeName === 'style') {
           var el = m.target;
-          if (!el.dataset || el.dataset.seen !== '1') continue;
-          var now = el.style.left + '|' + el.style.top;
-          if (now === el.dataset.pos) continue;
-          el.dataset.pos = now;
-          flash(el, 'hop', 440);
+          if (!el.dataset || !el.dataset.seen) continue;
+          var pos = el.style.left + '|' + el.style.top;
+          if (pos === el.dataset.pos) continue;
+          el.dataset.pos = pos;
+          flash(el, 'hop', 460);
         }
       }
     }).observe(layer, {
@@ -216,4 +522,14 @@
       attributeFilter: ['style']
     });
   }
+
+  /* ---------- تازه‌سازی سکه بعد از پایان بازی ---------- */
+  (function () {
+    var over = $('overScreen');
+    if (!over) return;
+    new MutationObserver(function () {
+      if (!over.classList.contains('hidden')) setTimeout(refreshCoins, 900);
+    }).observe(over, { attributes: true, attributeFilter: ['class'] });
+  })();
+
 })();
