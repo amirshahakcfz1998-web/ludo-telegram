@@ -1,5 +1,25 @@
-/* لودو استار — تختهٔ حرفه‌ای SVG + مهره‌های سه‌بعدی (نسخهٔ ۲)
-   API این فایل با نسخهٔ قبل سازگار است: renderGrid, cellOf, toPercent, spreadOffset */
+/* لودو استار — تختهٔ حرفه‌ای SVG + مهره‌های سه‌بعدی (نسخهٔ ۲.۱)
+   API سازگار با قبل: renderGrid, cellOf, toPercent, spreadOffset
+   این فایل ماژول‌های جانبی (audio, dice) را هم خودش لود می‌کند تا index.html دست‌نخورده بماند. */
+
+/* ------------------------ بارگذار ماژول‌های جانبی ------------------------ */
+(function () {
+  'use strict';
+  var v = String(Math.floor(Date.now() / 60000));   // ضد کش تلگرام
+  var mods = ['/audio.js', '/dice.js'];
+
+  mods.forEach(function (src) {
+    if (document.querySelector('script[data-ludo-mod="' + src + '"]')) return;
+    var s = document.createElement('script');
+    s.src = src + '?v=' + v;
+    s.async = false;                                  // ترتیب حفظ شود
+    s.setAttribute('data-ludo-mod', src);
+    s.onerror = function () { /* اگر فایل هنوز ساخته نشده، بی‌صدا رد شو */ };
+    (document.head || document.documentElement).appendChild(s);
+  });
+})();
+
+/* ------------------------------ تخته ------------------------------ */
 (function (global) {
   'use strict';
 
@@ -64,9 +84,7 @@
     BLUE:   { d: '#12468f', m: '#3b9bff', l: '#9ccfff' }
   };
 
-  /* ------------------------------------------------------------------ */
-  /* توابع منطقی (بدون تغییر نسبت به نسخهٔ قبل)                          */
-  /* ------------------------------------------------------------------ */
+  /* ---------------------- توابع منطقی ---------------------- */
 
   function isBase(p) { return p === POS_BASE; }
   function isOnTrack(p) { return p >= 0 && p <= LAST_TRACK; }
@@ -107,9 +125,7 @@
     return { dx: start + index * step, dy: index % 2 === 0 ? -0.4 : 0.4 };
   }
 
-  /* ------------------------------------------------------------------ */
-  /* ابزارهای ترسیم SVG                                                  */
-  /* ------------------------------------------------------------------ */
+  /* ---------------------- ابزارهای ترسیم ---------------------- */
 
   function n(v) { return Math.round(v * 10) / 10; }
 
@@ -150,17 +166,14 @@
   function defs() {
     var g = '<defs>';
 
-    /* پلیت اصلی تخته */
     g += '<linearGradient id="lbPlate" x1="0" y1="0" x2="0.4" y2="1">' +
          '<stop offset="0" stop-color="#4a1d7a"/><stop offset="0.45" stop-color="#331253"/>' +
          '<stop offset="1" stop-color="#1d0733"/></linearGradient>';
 
-    /* کاشی سفید مسیر */
     g += '<linearGradient id="lbTile" x1="0" y1="0" x2="0" y2="1">' +
          '<stop offset="0" stop-color="#ffffff"/><stop offset="0.55" stop-color="#f3edff"/>' +
          '<stop offset="1" stop-color="#d9cdf0"/></linearGradient>';
 
-    /* گرادیان رنگی هر تیم: کاشی، لانه، مثلث مرکز */
     COLORS.forEach(function (c) {
       var p = PAL[c];
       g += '<linearGradient id="lbC' + c + '" x1="0" y1="0" x2="0" y2="1">' +
@@ -171,18 +184,15 @@
            '<stop offset="1" stop-color="' + p.d + '"/></radialGradient>';
     });
 
-    /* درخشش مرکز */
     g += '<radialGradient id="lbCore" cx="0.5" cy="0.42" r="0.7">' +
          '<stop offset="0" stop-color="#fff6cf"/><stop offset="0.55" stop-color="#ffd66b"/>' +
          '<stop offset="1" stop-color="#c98a12"/></radialGradient>';
 
-    /* نور سراسری روی تخته */
     g += '<linearGradient id="lbSheen" x1="0" y1="0" x2="0.7" y2="1">' +
          '<stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>' +
          '<stop offset="0.42" stop-color="#ffffff" stop-opacity="0.03"/>' +
          '<stop offset="1" stop-color="#000000" stop-opacity="0.22"/></linearGradient>';
 
-    /* سایهٔ نرم زیر لانه‌ها و مرکز */
     g += '<filter id="lbSoft" x="-20%" y="-20%" width="140%" height="140%">' +
          '<feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#12042a" flood-opacity="0.55"/></filter>';
 
@@ -204,14 +214,12 @@
            '" rx="44" fill="rgba(255,255,255,.22)"/>';
     out += '</g>';
 
-    /* صفحهٔ سفید داخلی */
     var ix = x + 0.9 * U, iy = y + 0.9 * U, iw = 4.2 * U;
     out += '<rect x="' + (ix) + '" y="' + (iy + 8) + '" width="' + iw + '" height="' + iw +
            '" rx="46" fill="rgba(8,2,20,.35)"/>';
     out += '<rect x="' + ix + '" y="' + iy + '" width="' + iw + '" height="' + iw +
            '" rx="46" fill="url(#lbTile)" stroke="' + p.d + '" stroke-width="4" stroke-opacity=".35"/>';
 
-    /* سوکت مهره‌ها */
     BASE_SLOTS[color].forEach(function (sl) {
       var cx = sl.x * U, cy = sl.y * U;
       out += '<circle cx="' + cx + '" cy="' + cy + '" r="44" fill="' + p.d + '" opacity=".16"/>';
@@ -286,7 +294,6 @@
       out += '<polygon points="' + pts + '" fill="url(#lbC' + c + ')" stroke="rgba(20,6,40,.45)" stroke-width="3"/>';
     });
 
-    /* هستهٔ طلایی وسط */
     out += '<circle cx="' + mid + '" cy="' + mid + '" r="62" fill="rgba(10,3,26,.45)"/>';
     out += '<circle cx="' + mid + '" cy="' + (mid - 4) + '" r="58" fill="url(#lbCore)" stroke="#8a5a06" stroke-width="4"/>';
     out += '<path d="' + starPath(mid, mid - 6, 34) + '" fill="#fff8dd" opacity=".92"/>';
@@ -299,7 +306,6 @@
             'preserveAspectRatio="xMidYMid meet" aria-hidden="true">';
     s += defs();
 
-    /* بدنهٔ تخته */
     s += '<rect x="0" y="0" width="' + SIZE + '" height="' + SIZE + '" rx="72" fill="url(#lbPlate)"/>';
     s += '<rect x="10" y="10" width="' + (SIZE - 20) + '" height="' + (SIZE - 20) +
          '" rx="64" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="6"/>';
@@ -311,15 +317,12 @@
     s += homeColumns();
     s += centerHome();
 
-    /* نور سراسری */
     s += '<rect x="0" y="0" width="' + SIZE + '" height="' + SIZE + '" rx="72" fill="url(#lbSheen)" pointer-events="none"/>';
     s += '</svg>';
     return s;
   }
 
-  /* ------------------------------------------------------------------ */
-  /* استایل تزریقی: تخته، مهره‌ها، جلوه‌ها                                */
-  /* ------------------------------------------------------------------ */
+  /* ---------------------- استایل تزریقی ---------------------- */
 
   var CSS = [
     '.board-wrap{padding:10px 12px 6px;display:flex;justify-content:center}',
@@ -333,7 +336,6 @@
     '.tokens-layer,.fx-layer{position:absolute;inset:0;pointer-events:none}',
     '.tokens-layer{z-index:4}.fx-layer{z-index:8}',
 
-    /* --- مهره‌های سه‌بعدی --- */
     '.tokens-layer .token{position:absolute;width:6.6%;height:6.6%;transform:translate(-50%,-58%);',
     'pointer-events:auto;z-index:5;',
     'transition:left .3s cubic-bezier(.34,1.36,.5,1),top .3s cubic-bezier(.34,1.36,.5,1),transform .18s ease;',
@@ -361,7 +363,6 @@
     '@keyframes lbGlow{0%,100%{filter:drop-shadow(0 0 2px rgba(255,255,255,.5))}',
     '50%{filter:drop-shadow(0 0 9px rgba(255,255,255,.95)) drop-shadow(0 0 16px var(--tm))}}',
 
-    /* --- جلوه‌ها --- */
     '.fx-layer .fx{position:absolute;transform:translate(-50%,-50%);font-size:26px;',
     'animation:lbFx 1.05s cubic-bezier(.2,.9,.3,1) forwards;text-shadow:0 3px 8px rgba(0,0,0,.6)}',
     '@keyframes lbFx{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}',
@@ -381,9 +382,7 @@
     document.head.appendChild(st);
   }
 
-  /* ------------------------------------------------------------------ */
-  /* رندر                                                                */
-  /* ------------------------------------------------------------------ */
+  /* ---------------------- رندر ---------------------- */
 
   function renderGrid(container) {
     injectStyle();
