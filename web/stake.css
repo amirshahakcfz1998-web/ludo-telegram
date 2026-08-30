@@ -1,0 +1,162 @@
+/* ============================================================
+   لودو استار — سکه‌ها و پنجرهٔ انتخاب مبلغ میز
+   ============================================================ */
+
+/* --- نشان سکه در نوار بالا --- */
+.ls-pill.coin i {
+  background: radial-gradient(circle at 34% 28%, #fff6c2, #e8a80c);
+  box-shadow: 0 1px 3px rgba(0,0,0,.5), inset 0 -2px 3px rgba(160,90,0,.5);
+}
+.ls-pill.coin b { min-width: 34px; text-align: center; }
+.ls-pill.coin.bump { animation: lsxBump .5s ease; }
+@keyframes lsxBump {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.18); filter: brightness(1.4); }
+  100% { transform: scale(1); }
+}
+
+/* --- پوشش تیره --- */
+.lsx-mask {
+  position: fixed; inset: 0; z-index: 9990;
+  display: flex; align-items: center; justify-content: center;
+  padding: 18px;
+  background: rgba(12,2,20,.72);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  animation: lsxFade .18s ease;
+}
+.lsx-mask.hidden { display: none; }
+@keyframes lsxFade { from { opacity: 0; } to { opacity: 1; } }
+
+/* --- کارت --- */
+.lsx-modal {
+  width: 100%; max-width: 380px;
+  max-height: 88vh; overflow-y: auto;
+  border-radius: 22px;
+  padding: 14px 14px 16px;
+  border: 2px solid #ffbe45;
+  background:
+    radial-gradient(120% 70% at 50% 0%, #7d2192, transparent 70%),
+    linear-gradient(180deg, #5c1369, #350a4b);
+  box-shadow: 0 18px 44px rgba(0,0,0,.65), inset 0 2px 0 rgba(255,255,255,.22);
+  animation: lsxPop .22s cubic-bezier(.2,.9,.3,1.3);
+}
+.lsx-modal::-webkit-scrollbar { width: 0; }
+@keyframes lsxPop { from { transform: translateY(18px) scale(.94); opacity: 0; } }
+
+.lsx-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.lsx-head b { flex: 1; font-size: 15px; color: #fff; text-shadow: 0 2px 3px rgba(0,0,0,.5); }
+.lsx-x {
+  width: 30px; height: 30px; flex: none; border: 0; border-radius: 10px;
+  font-size: 15px; color: #fff;
+  background: linear-gradient(180deg, #7f2296, #4d0d63);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 3px 7px rgba(0,0,0,.45);
+}
+.lsx-x:active { transform: translateY(2px); }
+
+.lsx-sub {
+  font-size: 11px; color: rgba(255,255,255,.78);
+  margin: -4px 0 10px;
+}
+
+/* --- موجودی --- */
+.lsx-bal {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 7px; margin-bottom: 12px;
+  border-radius: 13px;
+  font-size: 13px; font-weight: 800; color: #ffe07a;
+  background: rgba(0,0,0,.3);
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.1);
+}
+
+/* --- گزینه‌های مبلغ --- */
+.lsx-stakes { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+
+.lsx-stake {
+  position: relative;
+  border: 2px solid rgba(255,255,255,.16);
+  border-radius: 15px;
+  padding: 9px 6px 7px;
+  display: grid; gap: 3px; justify-items: center;
+  color: #fff;
+  background: linear-gradient(180deg, #7b2a94, #481060);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.2), 0 5px 12px rgba(0,0,0,.4);
+  transition: transform .12s, border-color .12s;
+}
+.lsx-stake:active { transform: translateY(2px) scale(.98); }
+.lsx-stake .amt { font-size: 15px; font-weight: 900; color: #ffd85c; }
+.lsx-stake .fee { font-size: 9.5px; color: rgba(255,255,255,.8); }
+
+.lsx-stake.free { background: linear-gradient(180deg, #23a06e, #10714c); }
+.lsx-stake.free .amt { color: #eafff4; font-size: 13px; }
+
+.lsx-stake.on {
+  border-color: #ffd05c;
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.35), 0 0 0 3px rgba(255,200,70,.28), 0 6px 14px rgba(0,0,0,.5);
+}
+.lsx-stake.on::after {
+  content: '✓';
+  position: absolute; top: -8px; inset-inline-end: -6px;
+  width: 21px; height: 21px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 12px; font-weight: 900; color: #4a2a00;
+  background: linear-gradient(180deg, #ffe27a, #f0a913);
+  box-shadow: 0 2px 6px rgba(0,0,0,.5);
+}
+
+.lsx-stake.locked { opacity: .42; filter: grayscale(.6); }
+.lsx-stake.locked .fee { color: #ff9c9c; }
+
+/* --- جدول جوایز --- */
+.lsx-prizes {
+  margin-top: 12px; padding: 9px 10px;
+  border-radius: 14px;
+  background: rgba(0,0,0,.28);
+  border: 1px solid rgba(255,255,255,.12);
+}
+.lsx-prizes h4 {
+  margin: 0 0 6px; font-size: 11px; font-weight: 800;
+  color: rgba(255,255,255,.85);
+}
+.lsx-prow {
+  display: flex; align-items: center; gap: 7px;
+  padding: 4px 0; font-size: 12px; color: #fff;
+  border-top: 1px dashed rgba(255,255,255,.1);
+}
+.lsx-prow:first-of-type { border-top: 0; }
+.lsx-prow span { flex: 1; opacity: .88; }
+.lsx-prow b { color: #ffd85c; font-weight: 900; }
+.lsx-prow.zero b { color: rgba(255,255,255,.45); }
+
+/* --- دکمهٔ تأیید --- */
+.lsx-go {
+  width: 100%; margin-top: 13px;
+  border: 2px solid #ffe08a; border-radius: 16px;
+  padding: 12px 0;
+  font-size: 15px; font-weight: 900; color: #fff;
+  text-shadow: 0 2px 3px rgba(0,0,0,.45);
+  background: linear-gradient(180deg, #ffc247, #ef820c);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.45), 0 7px 16px rgba(0,0,0,.5);
+}
+.lsx-go:active { transform: translateY(3px); }
+.lsx-go[disabled] { opacity: .5; filter: grayscale(.5); }
+
+/* --- نشان مبلغ در اتاق انتظار --- */
+.lsx-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin: 8px auto 0;
+  padding: 5px 12px; border-radius: 999px;
+  font-size: 12px; font-weight: 800; color: #ffe07a;
+  background: rgba(0,0,0,.32);
+  border: 1.5px solid rgba(255,200,70,.4);
+}
+
+@media (max-height: 700px) {
+  .lsx-stake { padding: 7px 4px 5px; }
+  .lsx-stake .amt { font-size: 13px; }
+  .lsx-modal { padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lsx-mask, .lsx-modal { animation: none; }
+  }
