@@ -1,12 +1,16 @@
 /* ============================================================
    لودو استار — لایهٔ ارتقا
-   تاس سه‌بعدی + انیمیشن مهره + دکمه‌های لابی + سیستم سکه
+   تاس سه‌بعدی + انیمیشن مهره + لابی + سکه + صفحهٔ نتیجه
    ============================================================ */
 (function () {
   'use strict';
 
   function $(id) { return document.getElementById(id); }
   var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+
+  function myId() {
+    try { return Number(tg.initDataUnsafe.user.id) || 0; } catch (e) { return 0; }
+  }
 
   function haptic(kind) {
     try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred(kind || 'light'); }
@@ -18,26 +22,115 @@
     return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
-  /* ---------- بارگذاری استایل سکه ---------- */
+  /* ---------- بارگذاری استایل سکه با ضدکش ---------- */
   (function () {
     var l = document.createElement('link');
     l.rel = 'stylesheet';
-    l.href = '/stake.css';
+    l.href = '/stake.css?v=' + Math.floor(Date.now() / 60000);
     document.head.appendChild(l);
   })();
 
-  /* ---------- اصلاحیه‌های CSS ---------- */
-  var fix = document.createElement('style');
-  fix.textContent =
-    '.face.ff i:nth-child(4){grid-area:2 / 3;}' +
-    '.token{transition:left .42s cubic-bezier(.35,.05,.25,1),top .42s cubic-bezier(.35,.05,.25,1);}' +
-    '.ls-mode.purple{background:linear-gradient(180deg,#8a4ce8,#5f27bd 60%,#421694);}' +
-    '.ls-mode-art .d.green{background:radial-gradient(circle at 34% 28%,#96f2b8,#17a54e);}' +
-    '.ls-legacy{position:absolute!important;width:0;height:0;overflow:hidden;opacity:0;pointer-events:none;}';
-  document.head.appendChild(fix);
+  /* ============================================================
+     استایل بحرانی — داخل JS تا هرگز کش نشود
+     ============================================================ */
+  var css = document.createElement('style');
+  css.textContent = [
+    '.face.ff i:nth-child(4){grid-area:2 / 3;}',
+    '.token{transition:left .42s cubic-bezier(.35,.05,.25,1),top .42s cubic-bezier(.35,.05,.25,1);}',
+    '.ls-mode.purple{background:linear-gradient(180deg,#8a4ce8,#5f27bd 60%,#421694);}',
+    '.ls-mode-art .d.green{background:radial-gradient(circle at 34% 28%,#96f2b8,#17a54e);}',
+    '.ls-legacy{position:absolute!important;width:0;height:0;overflow:hidden;opacity:0;pointer-events:none;}',
+
+    /* ---- صفحهٔ پایان بازی ---- */
+    '#overScreen{padding:0!important;overflow-y:auto!important;',
+      'align-items:stretch!important;justify-content:flex-start!important;',
+      'background:radial-gradient(80vw 44vh at 50% -4%,#7a1d86,transparent 70%),',
+      'linear-gradient(180deg,#4d1060 0%,#2c0742 100%)!important;}',
+
+    '#overScreen *{color:#fff!important;}',
+
+    '#overScreen .glass-card,#overScreen .glass-card.result{',
+      'width:100%!important;max-width:430px!important;margin:auto!important;',
+      'padding:calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 20px)!important;',
+      'border:0!important;border-radius:0!important;background:none!important;',
+      'box-shadow:none!important;backdrop-filter:none!important;',
+      '-webkit-backdrop-filter:none!important;}',
+
+    '#overIcon{font-size:58px!important;filter:drop-shadow(0 6px 14px rgba(0,0,0,.6));',
+      'animation:lsxDrop .6s cubic-bezier(.2,.9,.3,1.4);}',
+    '@keyframes lsxDrop{0%{transform:translateY(-26px) scale(.6);opacity:0}100%{transform:none;opacity:1}}',
+
+    '#overTitle{margin:4px 0 15px!important;font-size:22px!important;font-weight:900!important;',
+      'text-shadow:0 3px 8px rgba(0,0,0,.55);}',
+
+    /* رتبه‌ها */
+    '.rank-list{display:flex!important;flex-direction:column!important;gap:8px!important;',
+      'margin-bottom:12px!important;}',
+    '.rank-list>*{display:flex!important;align-items:center!important;gap:9px!important;',
+      'padding:11px 13px!important;border-radius:15px!important;',
+      'font-size:14px!important;font-weight:800!important;text-align:start!important;',
+      'background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(0,0,0,.22))!important;',
+      'border:1.5px solid rgba(255,255,255,.18)!important;',
+      'box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 4px 12px rgba(0,0,0,.35)!important;}',
+    '.rank-list>*:first-child{border-color:#ffc247!important;',
+      'background:linear-gradient(180deg,rgba(255,200,70,.32),rgba(180,110,0,.2))!important;}',
+    '.rank-list>*:nth-child(2){border-color:rgba(214,224,244,.5)!important;',
+      'background:linear-gradient(180deg,rgba(215,225,245,.22),rgba(60,70,100,.2))!important;}',
+    '.rank-list>*:nth-child(3){border-color:rgba(208,139,74,.55)!important;',
+      'background:linear-gradient(180deg,rgba(208,139,74,.26),rgba(90,50,20,.2))!important;}',
+
+    /* آمار */
+    '.result-stats{display:grid!important;grid-template-columns:1fr 1fr!important;',
+      'gap:9px!important;margin-bottom:4px!important;}',
+    '.result-stats>*{padding:10px 8px!important;border-radius:14px!important;',
+      'text-align:center!important;font-size:13px!important;font-weight:800!important;',
+      'background:rgba(255,255,255,.1)!important;',
+      'border:1px solid rgba(255,255,255,.16)!important;',
+      'box-shadow:inset 0 1px 0 rgba(255,255,255,.16)!important;}',
+    '.result-stats b,.result-stats strong{color:#ffd85c!important;',
+      'font-size:16px!important;font-weight:900!important;}',
+    '.result-stats small{color:rgba(255,255,255,.78)!important;',
+      'font-size:10.5px!important;font-weight:600!important;}',
+
+    /* کارت جایزه */
+    '#lsxPrize{margin:12px 0 10px;padding:12px;border-radius:17px;',
+      'border:2px solid rgba(255,200,70,.5);',
+      'background:linear-gradient(180deg,rgba(255,200,70,.22),rgba(0,0,0,.3));',
+      'box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 6px 16px rgba(0,0,0,.4);}',
+    '#lsxPrize .big{display:flex;align-items:center;justify-content:center;gap:8px;',
+      'font-size:26px;font-weight:900;color:#ffd85c!important;',
+      'text-shadow:0 2px 8px rgba(0,0,0,.6);}',
+    '#lsxPrize .big.zero{color:rgba(255,255,255,.6)!important;font-size:17px;}',
+    '#lsxPrize .cap{margin-top:4px;text-align:center;font-size:11px;',
+      'color:rgba(255,255,255,.78)!important;}',
+    '#lsxPrize .bal{margin-top:9px;padding-top:8px;text-align:center;',
+      'font-size:12.5px;font-weight:800;border-top:1px dashed rgba(255,255,255,.18);}',
+    '#lsxPrize .bal b{color:#ffd85c!important;}',
+    '#lsxPrize.win{animation:lsxWin .7s cubic-bezier(.2,.9,.3,1.3);}',
+    '@keyframes lsxWin{0%{transform:scale(.82);opacity:0}60%{transform:scale(1.06)}100%{transform:scale(1)}}',
+
+    /* دکمه‌ها */
+    '#btnAgain{margin-top:14px!important;border:2px solid #ffe08a!important;',
+      'border-radius:16px!important;padding:14px 0!important;',
+      'font-size:16px!important;font-weight:900!important;',
+      'text-shadow:0 2px 3px rgba(0,0,0,.45);',
+      'background:linear-gradient(180deg,#ffc247,#ef820c)!important;',
+      'box-shadow:inset 0 2px 0 rgba(255,255,255,.45),0 8px 18px rgba(0,0,0,.5)!important;}',
+    '#btnAgain:active{transform:translateY(3px);}',
+    '#btnHome{margin-top:9px!important;border:1.5px solid rgba(255,255,255,.28)!important;',
+      'border-radius:16px!important;padding:12px 0!important;',
+      'font-size:14px!important;font-weight:800!important;',
+      'background:rgba(255,255,255,.1)!important;',
+      'box-shadow:inset 0 1px 0 rgba(255,255,255,.16)!important;}',
+    '#btnHome:active{transform:translateY(2px);}',
+
+    '@media (max-height:700px){#overIcon{font-size:44px!important}',
+      '#overTitle{font-size:19px!important}}'
+  ].join('');
+  document.head.appendChild(css);
 
   /* ============================================================
-     ۰) اقتصاد سکه
+     ۱) اقتصاد سکه
      ============================================================ */
 
   var COIN = {
@@ -47,11 +140,7 @@
     seats: 4
   };
 
-  var SHARES = {
-    2: [1],
-    3: [0.65, 0.35],
-    4: [0.625, 0.25, 0.125]
-  };
+  var SHARES = { 2: [1], 3: [0.65, 0.35], 4: [0.625, 0.25, 0.125] };
 
   function entryFee(stake, seats) {
     if (stake <= 0 || seats <= 0) return 0;
@@ -62,9 +151,8 @@
 
   function prizeList(stake, seats) {
     var pot = potOf(stake, seats);
-    var out = [];
     var sh = SHARES[seats] || SHARES[2];
-    var given = 0, i;
+    var out = [], given = 0, i;
     for (i = 0; i < sh.length; i++) {
       var a = Math.floor(pot * sh[i]);
       out.push(a); given += a;
@@ -99,6 +187,8 @@
     paintStakes();
   }
 
+  var nativeFetch = window.fetch.bind(window);
+
   function refreshCoins() {
     var init = (tg && tg.initData) ? tg.initData : '';
     if (!init) return;
@@ -112,10 +202,6 @@
       .catch(function () { /* ignore */ });
   }
 
-  /* ---------- تزریق مبلغ به درخواست ساخت اتاق ---------- */
-
-  var nativeFetch = window.fetch.bind(window);
-
   window.fetch = function (input, init) {
     var url = '';
     try { url = (typeof input === 'string') ? input : (input && input.url) || ''; }
@@ -124,8 +210,7 @@
     if (init && init.body && url.indexOf('/api/room/create') !== -1) {
       try {
         var b = JSON.parse(init.body);
-        if (b.mode !== 'AI') b.stake = COIN.chosen;
-        else b.stake = 0;
+        b.stake = (b.mode === 'AI') ? 0 : COIN.chosen;
         init = Object.assign({}, init, { body: JSON.stringify(b) });
       } catch (e) { /* ignore */ }
     }
@@ -141,7 +226,7 @@
             if (typeof d.coins === 'number') setBalance(d.coins);
             if (Array.isArray(d.stakes) && d.stakes.length) COIN.stakes = d.stakes;
             if (d.ok === false && d.error === 'NOT_ENOUGH_COINS') {
-              alertCoins(d.need || 0);
+              toastMsg('سکه کافی نداری — ورودی این میز ' + num(d.need || 0) + ' سکه است');
             }
           }).catch(function () { /* ignore */ });
         } catch (e) { /* ignore */ }
@@ -152,16 +237,115 @@
     return p;
   };
 
-  function alertCoins(need) {
+  function toastMsg(text) {
     var t = $('toast');
     if (!t) return;
-    t.textContent = 'سکه کافی نداری — ورودی این میز ' + num(need) + ' سکه است';
+    t.textContent = text;
     t.classList.remove('hidden');
-    setTimeout(function () { t.classList.add('hidden'); }, 2600);
+    setTimeout(function () { t.classList.add('hidden'); }, 2800);
   }
 
   /* ============================================================
-     ۱) پنجرهٔ انتخاب مبلغ میز
+     ۲) کارت جایزه در پایان بازی
+     ============================================================ */
+
+  var lastResult = null;
+
+  (function patchWS() {
+    var Native = window.WebSocket;
+    if (!Native) return;
+
+    function Patched(url, protocols) {
+      var ws = protocols === undefined ? new Native(url) : new Native(url, protocols);
+      ws.addEventListener('message', function (ev) {
+        var m;
+        try { m = JSON.parse(ev.data); } catch (e) { return; }
+        if (!m) return;
+
+        if (m.state && typeof m.state.stake === 'number') {
+          COIN.chosen = m.state.stake;
+          if (m.state.players && m.state.players.length) {
+            COIN.seats = m.state.players.length;
+          }
+        }
+
+        if (m.t === 'RESULT') {
+          lastResult = m;
+          setTimeout(renderPrize, 300);
+        }
+      });
+      return ws;
+    }
+
+    Patched.prototype = Native.prototype;
+    Patched.CONNECTING = 0; Patched.OPEN = 1;
+    Patched.CLOSING = 2; Patched.CLOSED = 3;
+    window.WebSocket = Patched;
+  })();
+
+  function renderPrize() {
+    if (!lastResult) return;
+    var box = $('overStats');
+    if (!box || !box.parentNode) return;
+
+    var old = $('lsxPrize');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+
+    var stake = Number(lastResult.stake || 0);
+    var me = myId();
+    var o = null;
+    var arr = lastResult.outcomes || [];
+    for (var i = 0; i < arr.length; i++) {
+      if (Number(arr[i].tgId) === me) { o = arr[i]; break; }
+    }
+
+    var prize = o ? Number(o.coinsPrize || 0) : 0;
+    var gained = o ? Number(o.coinsGained || 0) : 0;
+    var balance = o ? Number(o.coinsBalance || 0) : COIN.balance;
+    var fee = entryFee(stake, COIN.seats);
+
+    if (stake <= 0 && gained <= 0) return;
+
+    var card = document.createElement('div');
+    card.id = 'lsxPrize';
+    if (prize > 0) card.className = 'win';
+
+    var head;
+    if (prize > 0) {
+      head = '<div class="big">🪙 <span>+' + num(prize) + '</span></div>' +
+             '<div class="cap">جایزهٔ میز ' + stakeLabel(stake) +
+             ' — ورودی تو ' + num(fee) + ' سکه بود</div>';
+    } else if (stake > 0) {
+      head = '<div class="big zero">این دور جایزه‌ای نبردی</div>' +
+             '<div class="cap">' + num(fee) + ' سکه ورودی میز ' + stakeLabel(stake) + '</div>';
+    } else {
+      head = '<div class="big zero">میز دوستانه</div>';
+    }
+
+    var extra = (gained - prize) > 0
+      ? '<div class="cap">🎁 پاداش بازی: +' + num(gained - prize) + ' سکه</div>'
+      : '';
+
+    card.innerHTML = head + extra +
+      '<div class="bal">موجودی جدید: <b>' + num(balance) + '</b> سکه</div>';
+
+    box.parentNode.insertBefore(card, box);
+    if (balance > 0) setBalance(balance);
+    if (prize > 0) haptic('heavy');
+  }
+
+  (function () {
+    var over = $('overScreen');
+    if (!over) return;
+    new MutationObserver(function () {
+      if (over.classList.contains('hidden')) return;
+      renderPrize();
+      setTimeout(refreshCoins, 900);
+    }).observe(over, { attributes: true, attributeFilter: ['class'] });
+  })();
+
+  /* ============================================================
+     ۳) پنجرهٔ انتخاب مبلغ میز
      ============================================================ */
 
   var mask = null, grid = null, prizeBox = null, goBtn = null, subEl = null;
@@ -232,7 +416,6 @@
       grid.appendChild(b);
     }
 
-    // اگر مبلغ انتخاب‌شده قابل پرداخت نیست، برگرد به دوستانه
     if (entryFee(COIN.chosen, seats) > COIN.balance) {
       COIN.chosen = 0;
       var f = grid.querySelector('.lsx-stake[data-v="0"]');
@@ -291,7 +474,7 @@
   }
 
   /* ============================================================
-     ۲) اتصال دکمه‌های لابی به منطق app.js
+     ۴) اتصال دکمه‌های لابی
      ============================================================ */
 
   var legacy = {};
@@ -347,7 +530,6 @@
     }, true);
   })();
 
-  /* ---------- تازه‌سازی سکه هنگام دیدن منو ---------- */
   (function () {
     var menu = $('menuScreen');
     if (!menu) return;
@@ -361,7 +543,6 @@
     setTimeout(refreshCoins, 1200);
   })();
 
-  /* ---------- نشان مبلغ در اتاق انتظار ---------- */
   (function () {
     var lob = $('lobbyScreen');
     var code = $('lobbyCode');
@@ -373,19 +554,16 @@
 
     new MutationObserver(function () {
       if (lob.classList.contains('hidden')) return;
-      if (COIN.chosen > 0) {
-        badge.textContent = '🪙 میز ' + stakeLabel(COIN.chosen) + ' — ورودی ' +
-                            num(entryFee(COIN.chosen, COIN.seats)) + ' سکه';
-        badge.style.display = '';
-      } else {
-        badge.textContent = '🤝 میز دوستانه';
-        badge.style.display = '';
-      }
+      badge.textContent = COIN.chosen > 0
+        ? '🪙 میز ' + stakeLabel(COIN.chosen) + ' — ورودی ' +
+          num(entryFee(COIN.chosen, COIN.seats)) + ' سکه'
+        : '🤝 میز دوستانه';
+      badge.style.display = '';
     }).observe(lob, { attributes: true, attributeFilter: ['class'] });
   })();
 
   /* ============================================================
-     ۳) تاس سه‌بعدی
+     ۵) تاس سه‌بعدی
      ============================================================ */
 
   var dice = $('dice');
@@ -394,15 +572,12 @@
   var layer = $('tokensLayer');
 
   var FACE = {
-    1: { x: 0,   y: 0 },
-    2: { x: 0,   y: 180 },
-    3: { x: 0,   y: -90 },
-    4: { x: 0,   y: 90 },
-    5: { x: -90, y: 0 },
-    6: { x: 90,  y: 0 }
+    1: { x: 0, y: 0 }, 2: { x: 0, y: 180 }, 3: { x: 0, y: -90 },
+    4: { x: 0, y: 90 }, 5: { x: -90, y: 0 }, 6: { x: 90, y: 0 }
   };
 
   var rolling = false, rollStart = 0, landTimer = null, stopTimer = null;
+  var lastVal = 0, settle = null;
 
   function setFace(v, animated) {
     var f = FACE[v] || FACE[1];
@@ -436,8 +611,6 @@
       haptic('rigid');
     }, wait);
   }
-
-  var lastVal = 0, settle = null;
 
   function readValue() {
     var n = parseInt((valEl.textContent || '').replace(/[^\d]/g, ''), 10);
@@ -477,7 +650,7 @@
   }
 
   /* ============================================================
-     ۴) انیمیشن مهره‌ها
+     ۶) انیمیشن مهره‌ها
      ============================================================ */
 
   function flash(el, cls, ms) {
@@ -516,20 +689,9 @@
         }
       }
     }).observe(layer, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['style']
+      childList: true, subtree: true,
+      attributes: true, attributeFilter: ['style']
     });
   }
-
-  /* ---------- تازه‌سازی سکه بعد از پایان بازی ---------- */
-  (function () {
-    var over = $('overScreen');
-    if (!over) return;
-    new MutationObserver(function () {
-      if (!over.classList.contains('hidden')) setTimeout(refreshCoins, 900);
-    }).observe(over, { attributes: true, attributeFilter: ['class'] });
-  })();
 
 })();
