@@ -1,4 +1,4 @@
-/** GameRoom: اتاق زندهٔ بازی — WebSocket، تایمر نوبت، ربات جایگزین، چت و پایان بازی */
+/** GameRoom: اتاق زندهٔ بازی — WebSocket، تایمر نوبت، ربات جایگزین، چت، سکه و پایان بازی */
 import { DurableObject } from 'cloudflare:workers';
 import {
   applyChosenMove,
@@ -21,6 +21,7 @@ import { generateSessionToken } from '../game/rng';
 import { sanitizeText } from '../utils/auth';
 import { fail, json, ok } from '../utils/helpers';
 import { TelegramAPI } from '../telegram/api';
+import { entryFee, prizeByRank, teamPrizeEach, normalizeStake, stakeLabel } from '../config/coins';
 import type { AILevel, GameMode, GameState, Player, Visibility } from '../game/types';
 
 const STATE_KEY = 'state';
@@ -42,16 +43,42 @@ interface JoinInput {
   chatId?: number | null;
 }
 
+interface HubCoins {
+  chargeEntry(
+    tgIds: number[],
+    amount: number,
+    roomId: string,
+  ): Promise<{ ok: boolean; short: number[]; balances: Record<string, number> }>;
+  refundEntry(tgIds: number[], amount: number, roomId: string): Promise<void>;
+  recordMatch(input: unknown): Promise<unknown[]>;
+  updateRoom(roomId: string, players: number, status: string): Promise<void>;
+  setLastRoom(tgId: number, roomId: string | null): Promise<void>;
+  removeRoom(roomId: string): Promise<void>;
+}
+
 export class GameRoom extends DurableObject {
   private state: GameState | null = null;
   private notifyChats = new Map<number, number>(); // tgId -> chatId
+
+  /** مبلغ میز و وضعیت پرداخت */
+  private stake = 0;
+  private teamMode = false;
+  private charged = false;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     ctx.blockConcurrencyWhile(async () => {
       this.state = (await ctx.storage.get<GameState>(STATE_KEY)) ?? null;
       this.notifyChats = (await ctx.storage.get<Map<number, number>>('chats')) ?? new Map();
+      this.stake = (await ctx.storage.get<number>('stake')) ?? 0;
+      this.teamMode = (await ctx.storage.get<boolean>('teamMode')) ?? false;
+      this.charged = (await ctx.storage.get<boolean>('charged')) ?? false;
     });
+  }
+
+  private hub(): HubCoins {
+    const env = this.env as Env;
+    return env.HUB.get(env.HUB.idFromName('global')) as unknown as HubCoins;
   }
 
   /* ---------------------------------------------------------------- */
@@ -64,9 +91,12 @@ export class GameRoom extends DurableObject {
     await this.ctx.storage.put(STATE_KEY, this.state);
   }
 
-  private publicState(): GameState | null {
+  private publicState(): (GameState & { stake?: number; fee?: number; teamMode?: boolean }) | null {
     if (!this.state) return null;
-    const s = cloneState(this.state);
+    const s = cloneState(this.state) as GameState & { stake?: number; fee?: number; teamMode?: boolean };
+    s.stake = this.stake;
+    s.fee = entryFee(this.stake, this.state.seatsTotal);
+    s.teamMode = this.teamMode;
     return s;
   }
 
@@ -143,6 +173,9 @@ export class GameRoom extends DurableObject {
       hostId: s.hostId,
       seatsTotal: s.seatsTotal,
       count: s.players.length,
+      stake: this.stake,
+      fee: entryFee(this.stake, s.seatsTotal),
+      teamMode: this.teamMode,
       players: s.players.map((p) => ({
         tgId: p.tgId,
         name: p.name,
@@ -180,6 +213,14 @@ export class GameRoom extends DurableObject {
       hostId: `u${host.tgId}`,
     });
     this.state.seatsTotal = MODE_SEATS[mode] ?? 4;
+
+    // بازی با ربات همیشه دوستانه است
+    this.stake = mode === 'AI' ? 0 : normalizeStake(body.stake);
+    this.teamMode = Boolean(body.teamMode ?? false) && this.state.seatsTotal === 4;
+    this.charged = false;
+    await this.ctx.storage.put('stake', this.stake);
+    await this.ctx.storage.put('teamMode', this.teamMode);
+    await this.ctx.storage.put('charged', false);
 
     this.addHuman(host);
 
@@ -294,20 +335,71 @@ export class GameRoom extends DurableObject {
     if (s.status !== 'LOBBY') return fail('ALREADY_STARTED', 409);
     if (s.hostId !== `u${body.tgId}`) return fail('NOT_HOST', 403);
     if (s.players.length < 2) return fail('NEED_MORE_PLAYERS', 409);
-    await this.beginGame();
+
+    const res = await this.beginGame();
+    if (!res.ok) return json(res, 402);
     return json({ ok: true, summary: this.summary() });
   }
 
-  private async beginGame(): Promise<void> {
+  /** کسر ورودی از همهٔ بازیکنان انسانی */
+  private async chargeAll(): Promise<{ ok: boolean; error?: string; short?: number[] }> {
     const s = this.state as GameState;
-    if (s.status !== 'LOBBY') return;
+    if (this.charged) return { ok: true };
+
+    const fee = entryFee(this.stake, s.players.length);
+    if (fee <= 0) {
+      this.charged = true;
+      await this.ctx.storage.put('charged', true);
+      return { ok: true };
+    }
+
+    const ids = s.players.filter((p) => !p.isAI && p.tgId).map((p) => p.tgId as number);
+    if (!ids.length) {
+      this.charged = true;
+      await this.ctx.storage.put('charged', true);
+      return { ok: true };
+    }
+
+    try {
+      const res = await this.hub().chargeEntry(ids, fee, s.roomId);
+      if (!res.ok) {
+        const names = s.players
+          .filter((p) => p.tgId && res.short.includes(p.tgId))
+          .map((p) => p.name)
+          .join('، ');
+        pushChat(s, -1, 'سیستم', `⚠️ سکهٔ کافی نیست: ${names}`, false);
+        return { ok: false, error: 'NOT_ENOUGH_COINS', short: res.short };
+      }
+      this.charged = true;
+      await this.ctx.storage.put('charged', true);
+      pushChat(s, -1, 'سیستم', `🪙 میز ${stakeLabel(this.stake)} — ورودی هر نفر ${fee} سکه`, false);
+      return { ok: true };
+    } catch (err) {
+      console.log('chargeEntry failed:', String(err));
+      return { ok: true }; // اگر Hub در دسترس نبود، بازی متوقف نشود
+    }
+  }
+
+  private async beginGame(): Promise<{ ok: boolean; error?: string; short?: number[] }> {
+    const s = this.state as GameState;
+    if (s.status !== 'LOBBY') return { ok: true };
+
     s.seatsTotal = s.players.length;
+
+    const charge = await this.chargeAll();
+    if (!charge.ok) {
+      await this.save();
+      this.syncAll();
+      return charge;
+    }
+
     assignColors(s);
     startGame(s, Date.now());
     await this.save();
     this.syncAll();
     await this.scheduleNext();
     await this.notifyTurn();
+    return { ok: true };
   }
 
   private async doLeave(body: { tgId: number }): Promise<Response> {
@@ -573,6 +665,7 @@ export class GameRoom extends DurableObject {
     if (s.status === 'LOBBY') {
       if (now - s.createdAt > rules.timing.lobbyTimeoutMs) {
         s.status = 'ABORTED';
+        await this.refundAll();
         await this.save();
         this.syncAll();
         await this.releaseRoom();
@@ -601,6 +694,23 @@ export class GameRoom extends DurableObject {
     this.syncAll();
     await this.scheduleNext();
     await this.afterStateChange();
+  }
+
+  /** برگرداندن ورودی وقتی بازی هرگز شروع نشد */
+  private async refundAll(): Promise<void> {
+    const s = this.state;
+    if (!s || !this.charged) return;
+    const fee = entryFee(this.stake, s.seatsTotal);
+    if (fee <= 0) return;
+    const ids = s.players.filter((p) => !p.isAI && p.tgId).map((p) => p.tgId as number);
+    if (!ids.length) return;
+    try {
+      await this.hub().refundEntry(ids, fee, s.roomId);
+      this.charged = false;
+      await this.ctx.storage.put('charged', false);
+    } catch {
+      /* ignore */
+    }
   }
 
   private refreshPresence(now: number, idleMs: number, discMs: number): void {
@@ -646,7 +756,6 @@ export class GameRoom extends DurableObject {
       return;
     }
 
-    // فاز نامعتبر: نوبت را جلو ببر
     performRoll(s, now);
   }
 
@@ -677,7 +786,7 @@ export class GameRoom extends DurableObject {
   }
 
   /* ---------------------------------------------------------------- */
-  /* پایان بازی                                                        */
+  /* پایان بازی و پرداخت جایزه                                         */
   /* ---------------------------------------------------------------- */
 
   private finalized = false;
@@ -689,16 +798,38 @@ export class GameRoom extends DurableObject {
     await this.finalize();
   }
 
+  /** محاسبهٔ جایزهٔ سکه‌ای هر بازیکن */
+  private computePrizes(): Record<string, number> {
+    const s = this.state as GameState;
+    const prizes: Record<string, number> = {};
+    if (this.stake <= 0 || !this.charged) return prizes;
+
+    const seats = s.seatsTotal;
+
+    // حالت تیمی: تیم‌ها بر اساس صندلی‌های روبه‌رو (۰ و ۲ در برابر ۱ و ۳)
+    if (this.teamMode && seats === 4) {
+      const winnerSeat = s.players.find((p) => p.rank === 1)?.seat ?? 0;
+      const team = winnerSeat % 2;
+      const winners = s.players.filter((p) => p.seat % 2 === team && !p.isAI && p.tgId);
+      const each = teamPrizeEach(this.stake, seats, winners.length || 1);
+      for (const w of winners) prizes[String(w.tgId)] = each;
+      return prizes;
+    }
+
+    // حالت عادی: تقسیم بر اساس رتبه
+    const table = prizeByRank(this.stake, seats);
+    for (const p of s.players) {
+      if (p.isAI || !p.tgId) continue;
+      const amount = table[p.rank ?? seats];
+      if (amount && amount > 0) prizes[String(p.tgId)] = amount;
+    }
+    return prizes;
+  }
+
   private async finalize(): Promise<void> {
     const s = this.state as GameState;
-    const env = this.env as Env;
-
-    const hubId = env.HUB.idFromName('global');
-    const hub = env.HUB.get(hubId) as unknown as {
-      recordMatch: (input: unknown) => Promise<unknown[]>;
-      updateRoom: (roomId: string, players: number, status: string) => Promise<void>;
-      setLastRoom: (tgId: number, roomId: string | null) => Promise<void>;
-    };
+    const hub = this.hub();
+    const prizes = this.computePrizes();
 
     let outcomes: Record<string, unknown>[] = [];
     try {
@@ -708,6 +839,8 @@ export class GameRoom extends DurableObject {
         rulesId: s.rulesId,
         startedAt: s.startedAt ?? s.createdAt,
         finishedAt: s.finishedAt ?? Date.now(),
+        stake: this.stake,
+        prizes,
         players: s.players.map((p) => ({
           tgId: p.tgId,
           name: p.name,
@@ -731,20 +864,23 @@ export class GameRoom extends DurableObject {
       /* ignore */
     }
 
-    this.broadcast({ t: 'RESULT', state: this.publicState(), outcomes, now: Date.now() });
+    this.broadcast({
+      t: 'RESULT',
+      state: this.publicState(),
+      outcomes,
+      prizes,
+      stake: this.stake,
+      now: Date.now(),
+    });
     await this.notifyResult(outcomes);
     await this.ctx.storage.setAlarm(Date.now() + getRules(s.rulesId).timing.roomTtlMs);
   }
 
   private async releaseRoom(): Promise<void> {
     const s = this.state;
-    const env = this.env as Env;
     if (!s) return;
     try {
-      const hub = env.HUB.get(env.HUB.idFromName('global')) as unknown as {
-        removeRoom: (roomId: string) => Promise<void>;
-      };
-      await hub.removeRoom(s.roomId);
+      await this.hub().removeRoom(s.roomId);
     } catch {
       /* ignore */
     }
@@ -766,7 +902,7 @@ export class GameRoom extends DurableObject {
     if (!s || !api) return;
     const p = this.currentPlayer();
     if (!p || p.isAI || !p.tgId) return;
-    if (this.socketsOf(p.id).length > 0) return; // داخل بازی است، نیازی به پیام نیست
+    if (this.socketsOf(p.id).length > 0) return;
     const chatId = this.notifyChats.get(p.tgId);
     if (!chatId) return;
     await api.sendMessage(chatId, `🎲 نوبت توست! کد اتاق <code>${s.joinCode}</code>`);
@@ -790,9 +926,14 @@ export class GameRoom extends DurableObject {
       const delta = o ? Number(o.ratingDelta ?? 0) : 0;
       const sign = delta >= 0 ? '+' : '';
       const head = p.rank === 1 ? '🎉 <b>تو بردی!</b>' : '🏁 بازی تمام شد';
+      const prize = o ? Number(o.coinsPrize ?? 0) : 0;
+      const coinLine =
+        this.stake > 0
+          ? `\n🪙 جایزه: <b>${prize}</b> سکه (موجودی: ${o?.coinsBalance ?? '-'})`
+          : '';
       await api.sendMessage(
         chatId,
-        `${head}\n\n${ranking}\n\n📊 امتیاز: <b>${o?.ratingAfter ?? '-'}</b> (${sign}${delta})\n🎚 XP: +${o?.xpGained ?? 0}`,
+        `${head}\n\n${ranking}\n\n📊 امتیاز: <b>${o?.ratingAfter ?? '-'}</b> (${sign}${delta})\n🎚 XP: +${o?.xpGained ?? 0}${coinLine}`,
       );
     }
   }
