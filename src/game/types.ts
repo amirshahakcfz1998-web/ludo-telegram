@@ -67,7 +67,8 @@ export interface ChatMessage {
   at: number;
 }
 
-export type GameEvent =
+/** بدنهٔ رویداد؛ شمارهٔ ترتیب (n) هنگام ثبت اضافه می‌شود */
+export type GameEventBody =
   | { t: 'DICE'; seat: number; value: number }
   | { t: 'MOVE'; seat: number; token: number; from: number; to: number }
   | { t: 'ENTER'; seat: number; token: number; to: number }
@@ -85,6 +86,9 @@ export type GameEvent =
   | { t: 'PLAYER_LEAVE'; seat: number }
   | { t: 'GAME_START' }
   | { t: 'CHAT'; msg: ChatMessage };
+
+/** هر رویداد یک شمارهٔ ترتیب یکنواخت و صعودی دارد (n) */
+export type GameEvent = GameEventBody & { n?: number };
 
 export interface GameState {
   version: number;
@@ -106,6 +110,8 @@ export interface GameState {
   turnStartedAt: number;
   deadlineAt: number;
   turnCount: number;
+  /** شمارندهٔ سراسری رویدادها — پایهٔ همگام‌سازی انیمیشن کلاینت */
+  eventSeq: number;
   createdAt: number;
   startedAt: number | null;
   finishedAt: number | null;
