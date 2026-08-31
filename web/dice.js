@@ -1,11 +1,11 @@
-/* لودو استار — تاس سه‌بعدی + شنود وضعیت + جلوه‌های حرکت (نسخهٔ ۷) */
+/* لودو استار — تاس آرام‌تر + حرکت روان مهره روی GPU (نسخهٔ ۸) */
 
 /* ================== بخش ۰ — شنود وضعیت سرور ================== */
 (function (g) {
   'use strict';
   var ST = {
     seat: null, color: null, players: [], turnSeat: null, status: null,
-    phase: null, dice: null, rollSeq: 0, deadlineAt: 0, turnStartedAt: 0
+    phase: null, dice: null, rollSeq: 0
   };
   g.LudoState = ST;
   function emit() { try { document.dispatchEvent(new CustomEvent('lb:state')); } catch (e) { } }
@@ -22,7 +22,6 @@
         var s = m.state; if (!s) return;
         ST.status = s.status; ST.phase = s.phase; ST.turnSeat = s.turnSeat;
         ST.players = s.players || []; ST.dice = s.dice;
-        ST.deadlineAt = s.deadlineAt || 0; ST.turnStartedAt = s.turnStartedAt || 0;
         ST.rollSeq = (s.diceHistory && s.diceHistory.length) || 0;
         if (ST.seat !== null) {
           for (var i = 0; i < ST.players.length; i++) {
@@ -59,22 +58,21 @@
   }
   global.LudoHaptic = haptic;
 
-  var BOX = 72, H = 30;   /* BOX = اندازهٔ تاس، H = نیم‌یال مکعب */
+  var BOX = 72, H = 30;
 
   var CSS = [
     '#dice{position:relative!important;width:' + BOX + 'px!important;height:' + BOX + 'px!important;',
-    'perspective:600px!important;transform-style:preserve-3d!important;overflow:visible!important;',
+    'perspective:620px!important;transform-style:preserve-3d!important;overflow:visible!important;',
     'background:none!important;border:0!important;box-shadow:none!important;flex:none!important}',
     '#dice .dice-raw{opacity:0!important;position:absolute!important;left:0!important;top:0!important;',
     'pointer-events:none!important}',
-    '#dice .dice-shadow{position:absolute!important;left:50%!important;bottom:-4px!important;',
-    'width:54px!important;height:13px!important;border-radius:50%!important;filter:none!important;',
-    'background:radial-gradient(ellipse at center,rgba(8,2,22,.55),rgba(8,2,22,0) 72%)!important;',
+    '#dice .dice-shadow{position:absolute!important;left:50%!important;bottom:-3px!important;',
+    'width:52px!important;height:12px!important;border-radius:50%!important;filter:none!important;',
+    'background:radial-gradient(ellipse at center,rgba(8,2,22,.5),rgba(8,2,22,0) 72%)!important;',
     'transform:translateX(-50%)!important;animation:none!important}',
     '#diceCube{position:absolute!important;left:0!important;top:0!important;width:' + BOX + 'px!important;',
     'height:' + BOX + 'px!important;transform-style:preserve-3d!important;will-change:transform;',
     'transition:none!important;animation:none!important;background:none!important;box-shadow:none!important}',
-    /* وجه‌ها */
     '#diceCube .face{position:absolute!important;left:' + ((BOX - H * 2) / 2) + 'px!important;',
     'top:' + ((BOX - H * 2) / 2) + 'px!important;width:' + (H * 2) + 'px!important;height:' + (H * 2) + 'px!important;',
     'border-radius:13px!important;box-sizing:border-box!important;padding:6px!important;',
@@ -94,10 +92,9 @@
     '#diceCube .fd{transform:rotateX(-90deg) translateZ(' + H + 'px)!important}',
     '#diceCube .fe{transform:rotateY(-90deg) translateZ(' + H + 'px)!important}',
     '#diceCube .ff{transform:rotateY(180deg) translateZ(' + H + 'px)!important}',
-    /* حالت آمادهٔ پرتاب */
     '#dice.lb-ready::after{content:"";position:absolute;inset:-12px;border-radius:26px;',
     'pointer-events:none;background:radial-gradient(circle,rgba(255,214,107,.42),rgba(255,214,107,0) 68%);',
-    'animation:lbPulse 1.3s ease-in-out infinite}',
+    'animation:lbPulse 1.4s ease-in-out infinite}',
     '@keyframes lbPulse{0%,100%{opacity:.35;transform:scale(.94)}50%{opacity:.9;transform:scale(1.06)}}',
     '#dice.lb-land .face{box-shadow:inset 0 0 0 1.5px #fff,0 0 16px 4px rgba(255,214,107,.85)!important}'
   ].join('');
@@ -112,10 +109,8 @@
     if (st.textContent !== CSS) st.textContent = CSS;
   }
 
-  /* جای خال‌ها در شبکهٔ ۳×۳ (۰..۸) */
   var PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
 
-  /* مکان هر خال inline نوشته می‌شود تا هیچ CSS دیگری جابه‌جایش نکند */
   function faceHtml(cls, num) {
     var list = PIPS[num], s = '<div class="face ' + cls + '">', k, i, r, c;
     for (k = 0; k < list.length; k++) {
@@ -132,7 +127,7 @@
     if (!dice) return;
     var val = $('diceValue');
     if (val) val.classList.add('dice-raw');
-    if (!D.querySelector('#dice .dice-shadow')) {
+    if (!dice.querySelector('.dice-shadow')) {
       var sh = D.createElement('div');
       sh.className = 'dice-shadow';
       dice.appendChild(sh);
@@ -143,8 +138,8 @@
       cube.id = 'diceCube';
       dice.appendChild(cube);
     }
-    if (cube.getAttribute('data-lb') !== '7') {
-      cube.setAttribute('data-lb', '7');
+    if (cube.getAttribute('data-lb') !== '8') {
+      cube.setAttribute('data-lb', '8');
       cube.innerHTML = faceHtml('fa', 1) + faceHtml('fb', 2) + faceHtml('fc', 3) +
                        faceHtml('fd', 4) + faceHtml('fe', 5) + faceHtml('ff', 6);
     }
@@ -154,11 +149,11 @@
                4: { rx: 90, ry: 0 }, 5: { rx: 0, ry: 90 }, 6: { rx: 0, ry: 180 } };
 
   /* ⏱ سرعت پرتاب — عدد بزرگ‌تر = آرام‌تر */
-  var TOTAL = 1600, LOCK = 1100;
-  var SEGS = [[70, 420], [34, 320], [16, 240], [6, 180], [0, 440]];
-  var SPIN = { x: 720, y: 450, z: 360 };   /* مقدار چرخش کل (درجه) */
+  var TOTAL = 2200, LOCK = 1500;
+  var SEGS = [[78, 620], [38, 460], [18, 340], [7, 240], [0, 540]];
+  var SPIN = { x: 540, y: 360, z: 180 };
 
-  var busy = false, raf = 0, lastValue = 1;
+  var busy = false, raf = 0, lastValue = 1, lastRollAt = 0;
 
   function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
 
@@ -177,7 +172,7 @@
       'scale3d(' + (1 / sq).toFixed(3) + ',' + sq.toFixed(3) + ',1)';
     var shn = D.querySelector('#dice .dice-shadow');
     if (shn) {
-      var k = Math.max(0.35, 1 - h / 110);
+      var k = Math.max(0.35, 1 - h / 120);
       shn.style.transform = 'translateX(-50%) translateX(' + (x * 0.55).toFixed(1) + 'px) scale(' + k.toFixed(2) + ')';
       shn.style.opacity = String(Math.max(0.2, k));
     }
@@ -187,14 +182,16 @@
     injectCss(); build();
     var dice = $('dice');
     if (!dice) return;
-    if (busy) return;                 /* پرتاب تکراری نادیده گرفته می‌شود */
+    var now0 = Date.now();
+    if (busy || now0 - lastRollAt < 700) return;
+    lastRollAt = now0;
     busy = true;
 
     var v = value || readValue() || lastValue;
     if (!(v >= 1 && v <= 6)) v = 1;
     lastValue = v;
 
-    var startX = -26 - Math.random() * 12;
+    var startX = -24 - Math.random() * 10;
     var segIdx = -1, t0 = 0, locked = null;
 
     A('dice_roll'); haptic('medium');
@@ -212,14 +209,14 @@
           var u = SEGS[i][1] ? (el - acc) / SEGS[i][1] : 1;
           if (u < 0) u = 0; if (u > 1) u = 1;
           h = 4 * SEGS[i][0] * u * (1 - u);
-          if (SEGS[i][0] > 4 && u > 0.86) sq = 1 - 0.14 * ((u - 0.86) / 0.14);
+          if (SEGS[i][0] > 4 && u > 0.87) sq = 1 - 0.12 * ((u - 0.87) / 0.13);
           break;
         }
         acc += SEGS[i][1];
       }
       if (idx > segIdx) {
         if (segIdx >= 0 && SEGS[segIdx][0] > 0) {
-          A('dice_bounce', { strength: Math.min(1, SEGS[segIdx][0] / 70) });
+          A('dice_bounce', { strength: Math.min(1, SEGS[segIdx][0] / 78) });
           haptic('light');
         }
         segIdx = idx;
@@ -227,13 +224,13 @@
 
       var p = el / TOTAL;
       var x = startX * (1 - easeOut(p));
-      var e = easeOut(Math.min(1, el / (TOTAL * 0.92)));
+      var e = easeOut(Math.min(1, el / (TOTAL * 0.94)));
       var rx = SPIN.x * e, ry = SPIN.y * e, rz = SPIN.z * e;
 
       if (el >= LOCK) {
         if (!locked) {
           var f = FACE[v];
-          var eL = easeOut(Math.min(1, LOCK / (TOTAL * 0.92)));
+          var eL = easeOut(Math.min(1, LOCK / (TOTAL * 0.94)));
           locked = {
             fromX: SPIN.x * eL, fromY: SPIN.y * eL, fromZ: SPIN.z * eL,
             toX: Math.ceil((SPIN.x * eL - f.rx) / 360) * 360 + f.rx,
@@ -261,7 +258,6 @@
     raf = requestAnimationFrame(frame);
   }
 
-  /* ---------- محرک اصلی: فقط یک پرتاب برای هر تاس واقعی سرور ---------- */
   var lastSeq = -1, sniffOk = false, fbAt = 0;
 
   function onState() {
@@ -274,17 +270,16 @@
     if (!first) roll(S.dice || 0);
   }
 
-  /* اگر شنود وضعیت به هر دلیلی کار نکرد، از کلاس rolling استفاده می‌کنیم */
   function watchDice() {
     var dice = $('dice');
     if (!dice || !global.MutationObserver) return;
     new MutationObserver(function (recs) {
       for (var i = 0; i < recs.length; i++) {
         if (recs[i].attributeName === 'class' && dice.classList.contains('rolling')) {
-          dice.classList.remove('rolling');   /* انیمیشن قدیمی enhance.css خنثی شود */
+          dice.classList.remove('rolling');
           if (sniffOk) return;
           var t = Date.now();
-          if (t - fbAt < 1200) return;
+          if (t - fbAt < 1500) return;
           fbAt = t;
           roll(0);
           return;
@@ -357,6 +352,7 @@
     setCube(0, 0, -18, 24, 0, 1);
     D.addEventListener('lb:state', onState);
     watchDice(); watchRollButton(); bridgeSounds(); bridgeSetting(); unlockOnce();
+    setInterval(function () { injectCss(); build(); }, 1200);
   }
 
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', start);
@@ -366,7 +362,7 @@
 })(window);
 
 
-/* ================== بخش ۲ — حرکت خانه‌به‌خانهٔ مهره ================== */
+/* ================== بخش ۲ — حرکت روان مهره (GPU) ================== */
 (function (global) {
   'use strict';
   var D = global.document;
@@ -376,11 +372,14 @@
 
   var B = null;
 
-  /* ⏱ سرعت‌ها — عدد بزرگ‌تر = آهسته‌تر */
-  var CFG = { step: 260, gap: 70, capture: 820, exit: 620 };
+  /* ⏱ زمان هر خانه و پرش‌ها (میلی‌ثانیه) */
+  var CFG = { step: 210, capture: 780, exit: 520, jump: 480 };
   global.LudoFx = CFG;
 
   var CSS = [
+    /* حرکت با transform روی GPU؛ left/top ثابت می‌ماند */
+    '.tokens-layer .token.lb-anim{transform:translate(-50%,-50%) var(--lbT,translate3d(0,0,0))!important;',
+    'transition:none!important;animation:none!important;z-index:9!important;will-change:transform}',
     '.lb-spark{position:absolute;width:7px;height:7px;border-radius:50%;margin:-3.5px 0 0 -3.5px;',
     'pointer-events:none;z-index:11}',
     '.lb-ring{position:absolute;width:16%;height:16%;margin:-8% 0 0 -8%;border-radius:50%;',
@@ -396,11 +395,13 @@
   ].join('');
 
   function injectCss() {
-    if ($('lb-fx-style')) return;
-    var st = D.createElement('style');
-    st.id = 'lb-fx-style';
-    st.textContent = CSS;
-    (D.head || D.documentElement).appendChild(st);
+    var st = $('lb-fx-style');
+    if (!st) {
+      st = D.createElement('style');
+      st.id = 'lb-fx-style';
+      (D.head || D.documentElement).appendChild(st);
+    }
+    if (st.textContent !== CSS) st.textContent = CSS;
   }
 
   var LK = {};
@@ -457,64 +458,58 @@
     return { x: l / unit - 0.5, y: t / unit - 0.5 };
   }
 
-  function release(el, oldTr, cell) {
-    put(el, cell);
-    el.style.transition = oldTr || '';
-    el.__lbCell = cell;
-    setTimeout(function () { el.__lbBusy = false; }, 50);
+  function cellPx() {
+    var layer = $('tokensLayer');
+    if (!layer || !layer.clientWidth) return 20;
+    return layer.clientWidth / B.GRID;
   }
 
-  function walk(el, color, fromP, toP, finalCell) {
+  /* حرکت پیوسته روی مسیر؛ هیچ وقفه‌ای بین خانه‌ها نیست */
+  function animate(el, path, perStep, mode) {
+    if (path.length < 2) return;
     el.__lbBusy = true;
-    var oldTr = el.style.transition;
-    el.style.transition = 'none';
 
-    var seq = [], p;
-    for (p = fromP + 1; p <= toP; p++) seq.push(B.cellOf(color, p, 0));
-    if (!seq.length) { release(el, oldTr, finalCell); return; }
-    seq[seq.length - 1] = finalCell;
+    var cw = cellPx();
+    var start = path[0];
+    var end = path[path.length - 1];
+    put(el, start);
+    el.classList.add('lb-anim');
+    el.style.setProperty('--lbT', 'translate3d(0,0,0)');
 
-    var idx = 0, cur = B.cellOf(color, fromP, 0);
+    var total = (path.length - 1) * perStep;
+    var lift = mode === 'spin' ? 0.55 : mode === 'exit' ? 0.45 : 0.3;
+    var t0 = 0, lastSeg = -1;
 
-    function seg() {
-      if (idx >= seq.length) { haptic('light'); release(el, oldTr, finalCell); return; }
-      var a = cur, b = seq[idx], t0 = 0;
-      A('token_move', { step: idx + 1, total: seq.length });
-
-      function fr(now) {
-        if (!t0) t0 = now;
-        var t = Math.min(1, (now - t0) / CFG.step);
-        var e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-        var lift = 0.3 * Math.sin(Math.PI * t);
-        put(el, { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e - lift });
-        if (t < 1) { requestAnimationFrame(fr); return; }
-        cur = b; idx++;
-        setTimeout(seg, CFG.gap);
-      }
-      requestAnimationFrame(fr);
-    }
-    seg();
-  }
-
-  function arc(el, fromCell, toCell, dur, spin) {
-    el.__lbBusy = true;
-    var oldTr = el.style.transition;
-    el.style.transition = 'none';
-    var t0 = 0, lift = spin ? 2.4 : 1.2;
-
-    function frame(now) {
+    function fr(now) {
       if (!t0) t0 = now;
-      var t = Math.min(1, (now - t0) / dur);
-      var e = spin ? t : (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
-      put(el, {
-        x: fromCell.x + (toCell.x - fromCell.x) * e,
-        y: fromCell.y + (toCell.y - fromCell.y) * e - 4 * lift * t * (1 - t)
-      });
-      if (t < 1) { requestAnimationFrame(frame); return; }
-      haptic(spin ? 'heavy' : 'light');
-      release(el, oldTr, toCell);
+      var t = Math.min(1, (now - t0) / total);
+      var f = t * (path.length - 1);
+      var i = Math.min(path.length - 2, Math.floor(f));
+      var u = f - i;
+      var e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+      var a = path[i], b = path[i + 1];
+
+      if (i !== lastSeg) {
+        lastSeg = i;
+        if (mode === 'walk') A('token_move', { step: i + 1, total: path.length - 1 });
+      }
+
+      var x = (a.x + (b.x - a.x) * e - start.x) * cw;
+      var y = (a.y + (b.y - a.y) * e - start.y) * cw - lift * Math.sin(Math.PI * u) * cw;
+      var tr = 'translate3d(' + x.toFixed(2) + 'px,' + y.toFixed(2) + 'px,0)';
+      if (mode === 'spin') tr += ' rotate(' + (540 * t).toFixed(1) + 'deg)';
+      el.style.setProperty('--lbT', tr);
+
+      if (t < 1) { requestAnimationFrame(fr); return; }
+
+      el.style.setProperty('--lbT', 'translate3d(0,0,0)');
+      el.classList.remove('lb-anim');
+      put(el, end);
+      el.__lbCell = end;
+      haptic(mode === 'spin' ? 'heavy' : 'light');
+      setTimeout(function () { el.__lbBusy = false; }, 30);
     }
-    requestAnimationFrame(frame);
+    requestAnimationFrame(fr);
   }
 
   function watchTokens() {
@@ -543,14 +538,16 @@
         if (!a || !b) continue;
 
         if (b.p === B.POS_BASE && a.p !== B.POS_BASE) {
-          arc(el, was, now, CFG.capture, true);
+          animate(el, [was, now], CFG.capture, 'spin');
         } else if (a.p === B.POS_BASE && b.p >= 0) {
-          arc(el, was, now, CFG.exit, false);
+          animate(el, [was, now], CFG.exit, 'exit');
         } else if (b.p > a.p && b.p - a.p <= 6) {
-          put(el, was);
-          walk(el, color, a.p, b.p, now);
+          var path = [was], p;
+          for (p = a.p + 1; p <= b.p; p++) path.push(B.cellOf(color, p, 0));
+          path[path.length - 1] = now;
+          animate(el, path, CFG.step, 'walk');
         } else {
-          arc(el, was, now, 560, false);
+          animate(el, [was, now], CFG.jump, 'exit');
         }
       }
     }).observe(layer, { attributes: true, attributeFilter: ['style'], subtree: true });
@@ -571,8 +568,8 @@
         var dist = spread * (0.6 + Math.random() * 0.7);
         requestAnimationFrame(function () {
           node.style.transition = 'transform .7s cubic-bezier(.2,.7,.3,1),opacity .7s ease-out';
-          node.style.transform = 'translate(' + (Math.cos(a) * dist).toFixed(0) + 'px,' +
-            (Math.sin(a) * dist + 14).toFixed(0) + 'px) scale(.25)';
+          node.style.transform = 'translate3d(' + (Math.cos(a) * dist).toFixed(0) + 'px,' +
+            (Math.sin(a) * dist + 14).toFixed(0) + 'px,0) scale(.25)';
           node.style.opacity = '0';
         });
         setTimeout(function () { if (node.parentNode) node.parentNode.removeChild(node); }, 780);
@@ -591,7 +588,6 @@
     setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 1050);
   }
 
-  /* جلوگیری از تکرار جلوه‌ها وقتی سرور رویدادهای قدیمی را دوباره می‌فرستد */
   var fxSeen = {};
   function fxOnce(key) {
     var t = Date.now();
@@ -681,6 +677,7 @@
     B = global.LudoBoard;
     if (!B || !B.cellOf) { setTimeout(start, 250); return; }
     injectCss(); buildLookup(); watchTokens(); watchFx(); watchVictory();
+    setInterval(injectCss, 1500);
   }
 
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', start);
