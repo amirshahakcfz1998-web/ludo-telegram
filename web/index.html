@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0d1030">
 <title>Ludo Star</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="/styles.css?v=200">
+<link rel="stylesheet" href="/styles.css?v=202">
 </head>
 <body>
 
@@ -25,6 +25,7 @@
     <div class="card center">
       <h2>اتصال برقرار نشد</h2>
       <p id="err-text" class="muted"></p>
+      <pre id="err-tech" class="tech"></pre>
       <button class="btn" id="err-retry">تلاش دوباره</button>
     </div>
   </section>
@@ -168,6 +169,47 @@
 
 </div>
 
-<script src="/game.js?v=200"></script>
+<!-- ==== دام عیب‌یابی: هیچ خطایی بی‌صدا نمی‌ماند ==== -->
+<script>
+(function () {
+  var shown = false;
+  window.LUDO_BOOTED = false;
+
+  window.ludoFail = function (title, tech) {
+    if (shown) return;
+    shown = true;
+    var s = document.querySelectorAll('.screen');
+    for (var i = 0; i < s.length; i++) s[i].classList.remove('active');
+    var e = document.getElementById('sc-error');
+    if (e) e.classList.add('active');
+    var t = document.getElementById('err-text');
+    if (t) t.textContent = title || 'خطای نامشخص';
+    var p = document.getElementById('err-tech');
+    if (p && tech) p.textContent = String(tech).slice(0, 500);
+  };
+
+  window.addEventListener('error', function (ev) {
+    if (ev && ev.target && ev.target.tagName === 'SCRIPT') return;
+    var m = (ev && ev.message) ? ev.message : 'خطای اجرا';
+    var w = (ev && ev.filename) ? (ev.filename + ' : ' + ev.lineno) : '';
+    window.ludoFail('کد بازی خطا داد', m + '\n' + w);
+  }, true);
+
+  window.addEventListener('unhandledrejection', function (ev) {
+    window.ludoFail('خطای شبکه یا سرور', (ev && ev.reason) ? String(ev.reason) : '');
+  });
+
+  setTimeout(function () {
+    if (!window.LUDO_BOOTED) {
+      window.ludoFail(
+        'فایل game.js اجرا نشد.',
+        'آدرس /game.js را در مرورگر باز کن. اگر کد جاوااسکریپت نشان نداد، فایل باید داخل پوشهٔ web/ با نام دقیق game.js باشد و بعد deploy شود.'
+      );
+    }
+  }, 5000);
+})();
+</script>
+
+<script src="/game.js?v=202" onerror="window.ludoFail('فایل game.js روی سرور پیدا نشد (۴۰۴).','باید در مسیر web/game.js باشد و بعد از commit، دستور npx wrangler deploy اجرا شود.')"></script>
 </body>
 </html>
