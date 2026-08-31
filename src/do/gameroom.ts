@@ -19,13 +19,19 @@ import { chooseFallbackMove, chooseMove, thinkDelayMs } from '../ai/ai';
 import { getRules, MODE_SEATS, SEAT_COLORS } from '../config/rules';
 import { generateSessionToken } from '../game/rng';
 import { sanitizeText } from '../utils/auth';
-import { fail, json, ok } from '../utils/helpers';
+import { fail, json } from '../utils/helpers';
 import { TelegramAPI } from '../telegram/api';
 import { entryFee, prizeByRank, teamPrizeEach, normalizeStake, stakeLabel } from '../config/coins';
 import type { AILevel, GameMode, GameState, Player, Visibility } from '../game/types';
 
 const STATE_KEY = 'state';
-const MAX_TICKS = 40;
+
+/**
+ * حداقل فاصلهٔ بین دو اقدام خودکار.
+ * تاس روی کلاینت ۱٫۶ ثانیه می‌چرخد، پس قبل از اقدام بعدی باید فرصت پخش داشته باشد.
+ */
+const GAP_BEFORE_ROLL_MS = 1900;
+const GAP_BEFORE_MOVE_MS = 1000;
 
 interface SocketMeta {
   tgId: number;
@@ -58,12 +64,18 @@ interface HubCoins {
 
 export class GameRoom extends DurableObject {
   private state: GameState | null = null;
-  private notifyChats = new Map<number, number>(); // tgId -> chatId
+  private notifyChats = new Map<number, number>();
 
-  /** مبلغ میز و وضعیت پرداخت */
   private stake = 0;
   private teamMode = false;
   private charged = false;
+  /** در storage نگهداری می‌شود تا بعد از evict شدن DO جایزه دوبار پرداخت نشود */
+  private finalized = false;
+
+  /** زمان آخرین اقدام خودکار — برای فاصله‌گذاری طبیعی بین حرکت ربات‌ها */
+  private lastAutoAt = 0;
+  /** آخرین actionId هر بازیکن — جلوگیری از اجرای دوبارهٔ یک درخواست */
+  private lastAction = new Map<string, string>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -73,6 +85,11 @@ export class GameRoom extends DurableObject {
       this.stake = (await ctx.storage.get<number>('stake')) ?? 0;
       this.teamMode = (await ctx.storage.get<boolean>('teamMode')) ?? false;
       this.charged = (await ctx.storage.get<boolean>('charged')) ?? false;
+      this.finalized = (await ctx.storage.get<boolean>('finalized')) ?? false;
+      // سازگاری با اتاق‌های ساخته‌شده پیش از افزودن eventSeq
+      if (this.state && typeof this.state.eventSeq !== 'number') {
+        this.state.eventSeq = this.state.events.length;
+      }
     });
   }
 
@@ -214,13 +231,14 @@ export class GameRoom extends DurableObject {
     });
     this.state.seatsTotal = MODE_SEATS[mode] ?? 4;
 
-    // بازی با ربات همیشه دوستانه است
     this.stake = mode === 'AI' ? 0 : normalizeStake(body.stake);
     this.teamMode = Boolean(body.teamMode ?? false) && this.state.seatsTotal === 4;
     this.charged = false;
+    this.finalized = false;
     await this.ctx.storage.put('stake', this.stake);
     await this.ctx.storage.put('teamMode', this.teamMode);
     await this.ctx.storage.put('charged', false);
+    await this.ctx.storage.put('finalized', false);
 
     this.addHuman(host);
 
@@ -264,16 +282,16 @@ export class GameRoom extends DurableObject {
     const seat = s.players.length;
     const palette = SEAT_COLORS[s.seatsTotal] ?? SEAT_COLORS[4];
     const names: Record<AILevel, string> = {
-      EASY: '🤖 ربات آسان',
-      NORMAL: '🤖 ربات معمولی',
-      HARD: '🤖 ربات سخت',
-      EXPERT: '🤖 ربات حرفه‌ای',
-      MASTER: '🤖 ربات استاد',
+      EASY: 'ربات آسان',
+      NORMAL: 'ربات معمولی',
+      HARD: 'ربات سخت',
+      EXPERT: 'ربات حرفه‌ای',
+      MASTER: 'ربات استاد',
     };
     const p = createPlayer({
-      id: `bot${seat}_${level}`,
+      id: `bot${seat}_${level}_${Date.now().toString(36)}`,
       tgId: null,
-      name: names[level] ?? '🤖 ربات',
+      name: names[level] ?? 'ربات',
       seat,
       color: palette[seat] ?? 'BLUE',
       isAI: true,
@@ -295,6 +313,7 @@ export class GameRoom extends DurableObject {
       existing.leftAt = null;
       existing.lastSeen = Date.now();
       existing.name = input.name;
+      existing.consecutiveMissed = 0;
       if (input.chatId) this.notifyChats.set(input.tgId, input.chatId);
       await this.persistChats();
       await this.save();
@@ -332,7 +351,7 @@ export class GameRoom extends DurableObject {
   private async doStart(body: { tgId: number }): Promise<Response> {
     const s = this.state;
     if (!s) return fail('NO_ROOM', 404);
-    if (s.status !== 'LOBBY') return fail('ALREADY_STARTED', 409);
+    if (s.status !== 'LOBBY') return json({ ok: true, summary: this.summary() });
     if (s.hostId !== `u${body.tgId}`) return fail('NOT_HOST', 403);
     if (s.players.length < 2) return fail('NEED_MORE_PLAYERS', 409);
 
@@ -341,7 +360,6 @@ export class GameRoom extends DurableObject {
     return json({ ok: true, summary: this.summary() });
   }
 
-  /** کسر ورودی از همهٔ بازیکنان انسانی */
   private async chargeAll(): Promise<{ ok: boolean; error?: string; short?: number[] }> {
     const s = this.state as GameState;
     if (this.charged) return { ok: true };
@@ -367,16 +385,16 @@ export class GameRoom extends DurableObject {
           .filter((p) => p.tgId && res.short.includes(p.tgId))
           .map((p) => p.name)
           .join('، ');
-        pushChat(s, -1, 'سیستم', `⚠️ سکهٔ کافی نیست: ${names}`, false);
+        pushChat(s, -1, 'سیستم', `سکهٔ کافی نیست: ${names}`, false);
         return { ok: false, error: 'NOT_ENOUGH_COINS', short: res.short };
       }
       this.charged = true;
       await this.ctx.storage.put('charged', true);
-      pushChat(s, -1, 'سیستم', `🪙 میز ${stakeLabel(this.stake)} — ورودی هر نفر ${fee} سکه`, false);
+      pushChat(s, -1, 'سیستم', `میز ${stakeLabel(this.stake)} — ورودی هر نفر ${fee} سکه`, false);
       return { ok: true };
     } catch (err) {
       console.log('chargeEntry failed:', String(err));
-      return { ok: true }; // اگر Hub در دسترس نبود، بازی متوقف نشود
+      return { ok: true };
     }
   }
 
@@ -393,8 +411,9 @@ export class GameRoom extends DurableObject {
       return charge;
     }
 
-    assignColors(s);
+    // assignColors داخل startGame انجام می‌شود؛ فراخوانی دوباره لازم نیست
     startGame(s, Date.now());
+    this.lastAutoAt = Date.now();
     await this.save();
     this.syncAll();
     await this.scheduleNext();
@@ -446,6 +465,15 @@ export class GameRoom extends DurableObject {
     const player = playerById(s, `u${tgId}`);
     if (!player) return fail('NOT_A_PLAYER', 403);
 
+    // بستن اتصال‌های قدیمی همین بازیکن تا سوکت ghost باقی نماند
+    for (const old of this.socketsOf(player.id)) {
+      try {
+        old.close(1012, 'replaced');
+      } catch {
+        /* ignore */
+      }
+    }
+
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
 
@@ -471,7 +499,13 @@ export class GameRoom extends DurableObject {
     );
 
     server.send(
-      JSON.stringify({ t: 'WELCOME', you: player.id, seat: player.seat, state: this.publicState(), now: Date.now() }),
+      JSON.stringify({
+        t: 'WELCOME',
+        you: player.id,
+        seat: player.seat,
+        state: this.publicState(),
+        now: Date.now(),
+      }),
     );
 
     return new Response(null, { status: 101, webSocket: client });
@@ -479,6 +513,7 @@ export class GameRoom extends DurableObject {
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     if (typeof message !== 'string') return;
+    if (message.length > 4000) return;
     const meta = this.metaOf(ws);
     const s = this.state;
     if (!meta || !s) return;
@@ -493,7 +528,7 @@ export class GameRoom extends DurableObject {
     const player = playerById(s, meta.playerId);
     if (!player) return;
     player.lastSeen = Date.now();
-    if (player.status !== 'ONLINE') {
+    if (player.status === 'IDLE' || player.status === 'DISCONNECTED') {
       player.status = 'ONLINE';
       pushEvent(s, { t: 'PLAYER_STATUS', seat: player.seat, status: 'ONLINE' });
     }
@@ -507,13 +542,17 @@ export class GameRoom extends DurableObject {
         ws.send(JSON.stringify({ t: 'SYNC', state: this.publicState(), now: Date.now() }));
         return;
 
-      case 'ROLL':
-        await this.handleRoll(player);
+      case 'ROLL': {
+        if (this.isDuplicate(player.id, msg.aid)) return;
+        await this.handleRoll(player, Number(msg.turn ?? -1));
         return;
+      }
 
-      case 'MOVE':
-        await this.handleMove(player, Number(msg.token ?? -1));
+      case 'MOVE': {
+        if (this.isDuplicate(player.id, msg.aid)) return;
+        await this.handleMove(player, Number(msg.token ?? -1), Number(msg.turn ?? -1));
         return;
+      }
 
       case 'CHAT': {
         const text = sanitizeText(String(msg.text ?? ''), 160);
@@ -527,6 +566,19 @@ export class GameRoom extends DurableObject {
       default:
         return;
     }
+  }
+
+  /** جلوگیری از اجرای دوبارهٔ یک درخواست (idempotency) */
+  private isDuplicate(playerId: string, aid: unknown): boolean {
+    const id = typeof aid === 'string' ? aid : '';
+    if (!id) return false;
+    if (this.lastAction.get(playerId) === id) return true;
+    this.lastAction.set(playerId, id);
+    if (this.lastAction.size > 32) {
+      const first = this.lastAction.keys().next().value;
+      if (first !== undefined) this.lastAction.delete(first);
+    }
+    return false;
   }
 
   async webSocketClose(ws: WebSocket): Promise<void> {
@@ -547,7 +599,7 @@ export class GameRoom extends DurableObject {
     const others = this.socketsOf(player.id).filter((w) => w !== ws);
     if (others.length > 0) return;
 
-    if (player.status === 'ONLINE') {
+    if (player.status === 'ONLINE' || player.status === 'IDLE') {
       player.status = 'DISCONNECTED';
       player.lastSeen = Date.now();
       pushEvent(s, { t: 'PLAYER_STATUS', seat: player.seat, status: 'DISCONNECTED' });
@@ -561,7 +613,7 @@ export class GameRoom extends DurableObject {
   /* حرکت‌های بازیکن                                                   */
   /* ---------------------------------------------------------------- */
 
-  private async handleRoll(player: Player): Promise<void> {
+  private async handleRoll(player: Player, turn: number): Promise<void> {
     const s = this.state as GameState;
     if (s.status !== 'PLAYING') return;
     if (s.turnSeat !== player.seat) {
@@ -569,28 +621,33 @@ export class GameRoom extends DurableObject {
       return;
     }
     if (s.phase !== 'ROLL') return;
+    if (turn >= 0 && turn !== s.turnCount) return; // درخواست کهنه
 
     player.consecutiveMissed = 0;
     performRoll(s, Date.now());
+    this.lastAutoAt = Date.now();
     await this.save();
     this.syncAll();
     await this.scheduleNext();
     await this.afterStateChange();
   }
 
-  private async handleMove(player: Player, token: number): Promise<void> {
+  private async handleMove(player: Player, token: number, turn: number): Promise<void> {
     const s = this.state as GameState;
     if (s.status !== 'PLAYING') return;
     if (s.turnSeat !== player.seat) {
       this.sendTo(player.id, { t: 'ERROR', code: 'NOT_YOUR_TURN' });
       return;
     }
+    if (turn >= 0 && turn !== s.turnCount) return;
+
     const res = performMove(s, token, Date.now());
     if (!res.ok) {
       this.sendTo(player.id, { t: 'ERROR', code: res.error ?? 'BAD_MOVE' });
       return;
     }
     player.consecutiveMissed = 0;
+    this.lastAutoAt = Date.now();
     await this.save();
     this.syncAll();
     await this.scheduleNext();
@@ -642,13 +699,23 @@ export class GameRoom extends DurableObject {
     const p = this.currentPlayer();
     if (this.isAutoControlled(p)) {
       const level = (p?.aiLevel ?? 'NORMAL') as AILevel;
-      await this.ctx.storage.setAlarm(now + thinkDelayMs(s, level));
+      // فاصلهٔ لازم تا کلاینت فرصت پخش انیمیشن تاس/حرکت را داشته باشد
+      const floor = s.phase === 'ROLL' ? GAP_BEFORE_ROLL_MS : GAP_BEFORE_MOVE_MS;
+      const think = Math.max(floor, thinkDelayMs(s, level));
+      const sinceLast = now - this.lastAutoAt;
+      const wait = Math.max(300, think - Math.max(0, sinceLast - floor));
+      await this.ctx.storage.setAlarm(now + wait);
       return;
     }
 
     await this.ctx.storage.setAlarm(Math.max(now + 500, s.deadlineAt));
   }
 
+  /**
+   * هر آلارم فقط و فقط یک اقدام انجام می‌دهد و بلافاصله وضعیت را پخش می‌کند.
+   * (نسخهٔ قبلی تا ۴۰ اقدام را در یک آلارم انجام می‌داد؛ همین باعث پرش مهره‌ها و
+   *  رد شدن انیمیشن تاس می‌شد چون کلاینت فقط نتیجهٔ نهایی را می‌دید.)
+   */
   async alarm(): Promise<void> {
     const s = this.state;
     if (!s) return;
@@ -673,30 +740,31 @@ export class GameRoom extends DurableObject {
       return;
     }
 
-    // بازیکنانی که مدتی خبری از آن‌ها نیست
     this.refreshPresence(now, rules.timing.idleAfterMs, rules.timing.disconnectedAfterMs);
 
-    let guard = 0;
-    while (guard++ < MAX_TICKS && this.state && this.state.status === 'PLAYING') {
-      const cur = this.currentPlayer();
-      if (!cur) break;
+    const cur = this.currentPlayer();
+    let acted = false;
 
+    if (cur) {
       if (this.isAutoControlled(cur)) {
+        this.lastAutoAt = Date.now();
         this.playAutomatically(cur);
-        continue;
+        acted = true;
+      } else if (now >= s.deadlineAt) {
+        this.lastAutoAt = Date.now();
+        this.handleTimeout(cur);
+        acted = true;
       }
-
-      if (Date.now() < this.state.deadlineAt) break;
-      this.handleTimeout(cur);
     }
 
-    await this.save();
-    this.syncAll();
+    if (acted) {
+      await this.save();
+      this.syncAll();
+    }
     await this.scheduleNext();
     await this.afterStateChange();
   }
 
-  /** برگرداندن ورودی وقتی بازی هرگز شروع نشد */
   private async refundAll(): Promise<void> {
     const s = this.state;
     if (!s || !this.charged) return;
@@ -724,7 +792,7 @@ export class GameRoom extends DurableObject {
           p.status = 'ONLINE';
           pushEvent(s, { t: 'PLAYER_STATUS', seat: p.seat, status: 'ONLINE' });
         }
-      } else if (gap >= discMs || !online) {
+      } else if (!online || gap >= discMs) {
         if (p.status !== 'DISCONNECTED') {
           p.status = 'DISCONNECTED';
           pushEvent(s, { t: 'PLAYER_STATUS', seat: p.seat, status: 'DISCONNECTED' });
@@ -736,15 +804,10 @@ export class GameRoom extends DurableObject {
     }
   }
 
-  /** یک اقدام خودکار برای ربات یا بازیکن غایب */
+  /** دقیقاً یک اقدام خودکار برای ربات یا بازیکن غایب */
   private playAutomatically(p: Player): void {
     const s = this.state as GameState;
     const now = Date.now();
-
-    if (s.phase === 'ROLL') {
-      performRoll(s, now);
-      return;
-    }
 
     if (s.phase === 'MOVE') {
       const moves = s.legalMoves.length ? s.legalMoves : getLegalMoves(s, p.seat, s.dice ?? 0);
@@ -789,16 +852,14 @@ export class GameRoom extends DurableObject {
   /* پایان بازی و پرداخت جایزه                                         */
   /* ---------------------------------------------------------------- */
 
-  private finalized = false;
-
   private async afterStateChange(): Promise<void> {
     const s = this.state;
     if (!s || s.status !== 'FINISHED' || this.finalized) return;
     this.finalized = true;
+    await this.ctx.storage.put('finalized', true);
     await this.finalize();
   }
 
-  /** محاسبهٔ جایزهٔ سکه‌ای هر بازیکن */
   private computePrizes(): Record<string, number> {
     const s = this.state as GameState;
     const prizes: Record<string, number> = {};
@@ -806,7 +867,6 @@ export class GameRoom extends DurableObject {
 
     const seats = s.seatsTotal;
 
-    // حالت تیمی: تیم‌ها بر اساس صندلی‌های روبه‌رو (۰ و ۲ در برابر ۱ و ۳)
     if (this.teamMode && seats === 4) {
       const winnerSeat = s.players.find((p) => p.rank === 1)?.seat ?? 0;
       const team = winnerSeat % 2;
@@ -816,7 +876,6 @@ export class GameRoom extends DurableObject {
       return prizes;
     }
 
-    // حالت عادی: تقسیم بر اساس رتبه
     const table = prizeByRank(this.stake, seats);
     for (const p of s.players) {
       if (p.isAI || !p.tgId) continue;
@@ -905,7 +964,7 @@ export class GameRoom extends DurableObject {
     if (this.socketsOf(p.id).length > 0) return;
     const chatId = this.notifyChats.get(p.tgId);
     if (!chatId) return;
-    await api.sendMessage(chatId, `🎲 نوبت توست! کد اتاق <code>${s.joinCode}</code>`);
+    await api.sendMessage(chatId, `نوبت توست! کد اتاق <code>${s.joinCode}</code>`);
   }
 
   private async notifyResult(outcomes: Record<string, unknown>[]): Promise<void> {
