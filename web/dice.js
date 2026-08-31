@@ -1,4 +1,45 @@
-/* لودو استار — تاس سه‌بعدی + حرکت آهستهٔ خانه‌به‌خانه (نسخهٔ ۶) */
+/* لودو استار — تاس سه‌بعدی + شنود وضعیت + جلوه‌های حرکت (نسخهٔ ۷) */
+
+/* ================== بخش ۰ — شنود وضعیت سرور ================== */
+(function (g) {
+  'use strict';
+  var ST = {
+    seat: null, color: null, players: [], turnSeat: null, status: null,
+    phase: null, dice: null, rollSeq: 0, deadlineAt: 0, turnStartedAt: 0
+  };
+  g.LudoState = ST;
+  function emit() { try { document.dispatchEvent(new CustomEvent('lb:state')); } catch (e) { } }
+
+  var OW = g.WebSocket;
+  if (!OW || OW.__lbState) return;
+
+  function W(u, p) {
+    var ws = (p === undefined) ? new OW(u) : new OW(u, p);
+    try {
+      ws.addEventListener('message', function (ev) {
+        var m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+        if (m.t === 'WELCOME' && typeof m.seat === 'number') ST.seat = m.seat;
+        var s = m.state; if (!s) return;
+        ST.status = s.status; ST.phase = s.phase; ST.turnSeat = s.turnSeat;
+        ST.players = s.players || []; ST.dice = s.dice;
+        ST.deadlineAt = s.deadlineAt || 0; ST.turnStartedAt = s.turnStartedAt || 0;
+        ST.rollSeq = (s.diceHistory && s.diceHistory.length) || 0;
+        if (ST.seat !== null) {
+          for (var i = 0; i < ST.players.length; i++) {
+            if (ST.players[i].seat === ST.seat) ST.color = ST.players[i].color;
+          }
+        }
+        emit();
+      });
+    } catch (e) { }
+    return ws;
+  }
+  W.prototype = OW.prototype;
+  W.CONNECTING = 0; W.OPEN = 1; W.CLOSING = 2; W.CLOSED = 3;
+  W.__lbState = true;
+  g.WebSocket = W;
+})(window);
+
 
 /* ================== بخش ۱ — تاس ================== */
 (function (global) {
@@ -18,58 +59,71 @@
   }
   global.LudoHaptic = haptic;
 
-  var H = 30;
+  var BOX = 72, H = 30;   /* BOX = اندازهٔ تاس، H = نیم‌یال مکعب */
 
   var CSS = [
-    '#dice{position:relative!important;width:74px!important;height:74px!important;',
-    'perspective:560px!important;transform-style:preserve-3d!important;overflow:visible!important;',
+    '#dice{position:relative!important;width:' + BOX + 'px!important;height:' + BOX + 'px!important;',
+    'perspective:600px!important;transform-style:preserve-3d!important;overflow:visible!important;',
     'background:none!important;border:0!important;box-shadow:none!important;flex:none!important}',
     '#dice .dice-raw{opacity:0!important;position:absolute!important;left:0!important;top:0!important;',
     'pointer-events:none!important}',
     '#dice .dice-shadow{position:absolute!important;left:50%!important;bottom:-4px!important;',
-    'width:56px!important;height:14px!important;border-radius:50%!important;',
+    'width:54px!important;height:13px!important;border-radius:50%!important;filter:none!important;',
     'background:radial-gradient(ellipse at center,rgba(8,2,22,.55),rgba(8,2,22,0) 72%)!important;',
-    'transform:translateX(-50%)!important}',
-    '#diceCube{position:absolute!important;left:0!important;top:0!important;width:74px!important;',
-    'height:74px!important;transform-style:preserve-3d!important;will-change:transform;',
-    'background:none!important;box-shadow:none!important}',
-    '#diceCube .face{position:absolute!important;left:7px!important;top:7px!important;',
-    'width:' + (H * 2) + 'px!important;height:' + (H * 2) + 'px!important;border-radius:13px!important;',
-    'box-sizing:border-box!important;padding:7px!important;display:grid!important;',
+    'transform:translateX(-50%)!important;animation:none!important}',
+    '#diceCube{position:absolute!important;left:0!important;top:0!important;width:' + BOX + 'px!important;',
+    'height:' + BOX + 'px!important;transform-style:preserve-3d!important;will-change:transform;',
+    'transition:none!important;animation:none!important;background:none!important;box-shadow:none!important}',
+    /* وجه‌ها */
+    '#diceCube .face{position:absolute!important;left:' + ((BOX - H * 2) / 2) + 'px!important;',
+    'top:' + ((BOX - H * 2) / 2) + 'px!important;width:' + (H * 2) + 'px!important;height:' + (H * 2) + 'px!important;',
+    'border-radius:13px!important;box-sizing:border-box!important;padding:6px!important;',
+    'direction:ltr!important;display:grid!important;',
     'grid-template-columns:repeat(3,1fr)!important;grid-template-rows:repeat(3,1fr)!important;',
-    'background:linear-gradient(150deg,#fffdf6 0%,#f1e8ff 52%,#cbb9ec 100%)!important;',
-    'box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.92),inset 0 -7px 12px rgba(86,52,140,.28),',
+    'backface-visibility:hidden!important;',
+    'background:linear-gradient(150deg,#fffdf7 0%,#f2eaff 52%,#cdbcee 100%)!important;',
+    'box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.92),inset 0 -7px 12px rgba(86,52,140,.26),',
     '0 2px 6px rgba(12,3,30,.35)!important}',
-    '#diceCube .face i{width:11px;height:11px;border-radius:50%;align-self:center;justify-self:center;',
-    'background:radial-gradient(circle at 32% 28%,#7b4bb5,#280b47);',
-    'box-shadow:inset 0 1px 1.5px rgba(255,255,255,.55),0 1px 1px rgba(0,0,0,.3)}',
+    '#diceCube .face i{width:11px!important;height:11px!important;border-radius:50%!important;',
+    'align-self:center!important;justify-self:center!important;',
+    'background:radial-gradient(circle at 32% 28%,#7b4bb5,#280b47)!important;',
+    'box-shadow:inset 0 1px 1.5px rgba(255,255,255,.55),0 1px 1px rgba(0,0,0,.3)!important}',
     '#diceCube .fa{transform:translateZ(' + H + 'px)!important}',
     '#diceCube .fb{transform:rotateY(90deg) translateZ(' + H + 'px)!important}',
     '#diceCube .fc{transform:rotateX(90deg) translateZ(' + H + 'px)!important}',
     '#diceCube .fd{transform:rotateX(-90deg) translateZ(' + H + 'px)!important}',
     '#diceCube .fe{transform:rotateY(-90deg) translateZ(' + H + 'px)!important}',
     '#diceCube .ff{transform:rotateY(180deg) translateZ(' + H + 'px)!important}',
+    /* حالت آمادهٔ پرتاب */
     '#dice.lb-ready::after{content:"";position:absolute;inset:-12px;border-radius:26px;',
     'pointer-events:none;background:radial-gradient(circle,rgba(255,214,107,.42),rgba(255,214,107,0) 68%);',
-    'animation:lbPulse 1.25s ease-in-out infinite}',
+    'animation:lbPulse 1.3s ease-in-out infinite}',
     '@keyframes lbPulse{0%,100%{opacity:.35;transform:scale(.94)}50%{opacity:.9;transform:scale(1.06)}}',
     '#dice.lb-land .face{box-shadow:inset 0 0 0 1.5px #fff,0 0 16px 4px rgba(255,214,107,.85)!important}'
   ].join('');
 
   function injectCss() {
     var st = $('lb-dice-style');
-    if (st) { st.textContent = CSS; return; }
-    st = D.createElement('style');
-    st.id = 'lb-dice-style';
-    st.textContent = CSS;
-    (D.head || D.documentElement).appendChild(st);
+    if (!st) {
+      st = D.createElement('style');
+      st.id = 'lb-dice-style';
+      (D.head || D.documentElement).appendChild(st);
+    }
+    if (st.textContent !== CSS) st.textContent = CSS;
   }
 
+  /* جای خال‌ها در شبکهٔ ۳×۳ (۰..۸) */
   var PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
 
+  /* مکان هر خال inline نوشته می‌شود تا هیچ CSS دیگری جابه‌جایش نکند */
   function faceHtml(cls, num) {
-    var s = '<div class="face ' + cls + '">', i;
-    for (i = 0; i < 9; i++) s += (PIPS[num].indexOf(i) !== -1) ? '<i></i>' : '<span></span>';
+    var list = PIPS[num], s = '<div class="face ' + cls + '">', k, i, r, c;
+    for (k = 0; k < list.length; k++) {
+      i = list[k];
+      r = Math.floor(i / 3) + 1;
+      c = (i % 3) + 1;
+      s += '<i style="grid-row:' + r + ';grid-column:' + c + '"></i>';
+    }
     return s + '</div>';
   }
 
@@ -89,8 +143,8 @@
       cube.id = 'diceCube';
       dice.appendChild(cube);
     }
-    if (cube.getAttribute('data-lb') !== '1') {
-      cube.setAttribute('data-lb', '1');
+    if (cube.getAttribute('data-lb') !== '7') {
+      cube.setAttribute('data-lb', '7');
       cube.innerHTML = faceHtml('fa', 1) + faceHtml('fb', 2) + faceHtml('fc', 3) +
                        faceHtml('fd', 4) + faceHtml('fe', 5) + faceHtml('ff', 6);
     }
@@ -98,9 +152,13 @@
 
   var FACE = { 1: { rx: 0, ry: 0 }, 2: { rx: 0, ry: -90 }, 3: { rx: -90, ry: 0 },
                4: { rx: 90, ry: 0 }, 5: { rx: 0, ry: 90 }, 6: { rx: 0, ry: 180 } };
-  var SEGS = [[72, 340], [34, 250], [15, 190], [6, 130], [0, 240]];
-  var TOTAL = 1150, LOCK = 780;
-  var busy = false, pending = null, raf = 0, lastValue = 1;
+
+  /* ⏱ سرعت پرتاب — عدد بزرگ‌تر = آرام‌تر */
+  var TOTAL = 1600, LOCK = 1100;
+  var SEGS = [[70, 420], [34, 320], [16, 240], [6, 180], [0, 440]];
+  var SPIN = { x: 720, y: 450, z: 360 };   /* مقدار چرخش کل (درجه) */
+
+  var busy = false, raf = 0, lastValue = 1;
 
   function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
 
@@ -129,12 +187,15 @@
     injectCss(); build();
     var dice = $('dice');
     if (!dice) return;
-    if (busy) { pending = value || 0; return; }
+    if (busy) return;                 /* پرتاب تکراری نادیده گرفته می‌شود */
     busy = true;
 
-    var startX = -30 - Math.random() * 14;
-    var freeX = 360 * 3 + 180, freeY = 360 * 2 + 90, freeZ = 360 * 2;
-    var locked = null, segIdx = -1, t0 = 0;
+    var v = value || readValue() || lastValue;
+    if (!(v >= 1 && v <= 6)) v = 1;
+    lastValue = v;
+
+    var startX = -26 - Math.random() * 12;
+    var segIdx = -1, t0 = 0, locked = null;
 
     A('dice_roll'); haptic('medium');
     dice.classList.remove('lb-land');
@@ -151,14 +212,14 @@
           var u = SEGS[i][1] ? (el - acc) / SEGS[i][1] : 1;
           if (u < 0) u = 0; if (u > 1) u = 1;
           h = 4 * SEGS[i][0] * u * (1 - u);
-          if (SEGS[i][0] > 4 && u > 0.86) sq = 1 - 0.16 * ((u - 0.86) / 0.14);
+          if (SEGS[i][0] > 4 && u > 0.86) sq = 1 - 0.14 * ((u - 0.86) / 0.14);
           break;
         }
         acc += SEGS[i][1];
       }
       if (idx > segIdx) {
         if (segIdx >= 0 && SEGS[segIdx][0] > 0) {
-          A('dice_bounce', { strength: Math.min(1, SEGS[segIdx][0] / 72) });
+          A('dice_bounce', { strength: Math.min(1, SEGS[segIdx][0] / 70) });
           haptic('light');
         }
         segIdx = idx;
@@ -167,20 +228,17 @@
       var p = el / TOTAL;
       var x = startX * (1 - easeOut(p));
       var e = easeOut(Math.min(1, el / (TOTAL * 0.92)));
-      var rx = freeX * e, ry = freeY * e, rz = freeZ * e;
+      var rx = SPIN.x * e, ry = SPIN.y * e, rz = SPIN.z * e;
 
       if (el >= LOCK) {
         if (!locked) {
-          var v = value || readValue() || lastValue;
-          if (!(v >= 1 && v <= 6)) v = 1;
-          lastValue = v;
           var f = FACE[v];
           var eL = easeOut(Math.min(1, LOCK / (TOTAL * 0.92)));
           locked = {
-            fromX: freeX * eL, fromY: freeY * eL, fromZ: freeZ * eL,
-            toX: Math.ceil((freeX * eL - f.rx) / 360) * 360 + f.rx,
-            toY: Math.ceil((freeY * eL - f.ry) / 360) * 360 + f.ry,
-            toZ: Math.ceil((freeZ * eL) / 360) * 360
+            fromX: SPIN.x * eL, fromY: SPIN.y * eL, fromZ: SPIN.z * eL,
+            toX: Math.ceil((SPIN.x * eL - f.rx) / 360) * 360 + f.rx,
+            toY: Math.ceil((SPIN.y * eL - f.ry) / 360) * 360 + f.ry,
+            toZ: Math.ceil((SPIN.z * eL) / 360) * 360
           };
         }
         var q = easeOut((el - LOCK) / (TOTAL - LOCK));
@@ -197,23 +255,37 @@
       dice.classList.add('lb-land');
       setTimeout(function () { dice.classList.remove('lb-land'); }, 420);
       busy = false;
-      if (pending !== null) {
-        var nx = pending; pending = null;
-        setTimeout(function () { roll(nx); }, 220);
-      }
     }
 
     if (raf) cancelAnimationFrame(raf);
     raf = requestAnimationFrame(frame);
   }
 
+  /* ---------- محرک اصلی: فقط یک پرتاب برای هر تاس واقعی سرور ---------- */
+  var lastSeq = -1, sniffOk = false, fbAt = 0;
+
+  function onState() {
+    var S = global.LudoState;
+    if (!S || !S.rollSeq) return;
+    if (S.rollSeq === lastSeq) return;
+    var first = (lastSeq === -1);
+    lastSeq = S.rollSeq;
+    sniffOk = true;
+    if (!first) roll(S.dice || 0);
+  }
+
+  /* اگر شنود وضعیت به هر دلیلی کار نکرد، از کلاس rolling استفاده می‌کنیم */
   function watchDice() {
     var dice = $('dice');
     if (!dice || !global.MutationObserver) return;
     new MutationObserver(function (recs) {
       for (var i = 0; i < recs.length; i++) {
         if (recs[i].attributeName === 'class' && dice.classList.contains('rolling')) {
-          dice.classList.remove('rolling');
+          dice.classList.remove('rolling');   /* انیمیشن قدیمی enhance.css خنثی شود */
+          if (sniffOk) return;
+          var t = Date.now();
+          if (t - fbAt < 1200) return;
+          fbAt = t;
           roll(0);
           return;
         }
@@ -283,6 +355,7 @@
   function start() {
     injectCss(); build();
     setCube(0, 0, -18, 24, 0, 1);
+    D.addEventListener('lb:state', onState);
     watchDice(); watchRollButton(); bridgeSounds(); bridgeSetting(); unlockOnce();
   }
 
@@ -293,7 +366,7 @@
 })(window);
 
 
-/* ================== بخش ۲ — حرکت آهستهٔ مهره ================== */
+/* ================== بخش ۲ — حرکت خانه‌به‌خانهٔ مهره ================== */
 (function (global) {
   'use strict';
   var D = global.document;
@@ -518,6 +591,15 @@
     setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 1050);
   }
 
+  /* جلوگیری از تکرار جلوه‌ها وقتی سرور رویدادهای قدیمی را دوباره می‌فرستد */
+  var fxSeen = {};
+  function fxOnce(key) {
+    var t = Date.now();
+    if (fxSeen[key] && t - fxSeen[key] < 900) return false;
+    fxSeen[key] = t;
+    return true;
+  }
+
   function watchFx() {
     var layer = $('fxLayer');
     if (!layer || !global.MutationObserver) return;
@@ -529,6 +611,7 @@
           if (!n || n.nodeType !== 1 || n.className !== 'fx') continue;
           var txt = n.textContent || '';
           var l = parseFloat(n.style.left) || 50, t = parseFloat(n.style.top) || 50;
+          if (!fxOnce(txt + '|' + l.toFixed(1) + '|' + t.toFixed(1))) continue;
           if (txt.indexOf('💥') !== -1) {
             A('token_capture'); haptic('heavy');
             overlay('lb-ring', l, t);
