@@ -23,7 +23,7 @@ import type {
 import { getRules, MODE_SEATS, SEAT_COLORS, type GameRules } from '../config/rules';
 import { generateId, rollDice } from './rng';
 
-const MAX_EVENTS = 40;
+const MAX_EVENTS = 80;
 const MAX_CHAT = 60;
 
 /* ------------------------------------------------------------------ */
@@ -34,7 +34,10 @@ export function cloneState(state: GameState): GameState {
   return structuredClone(state);
 }
 
+/** هر رویداد یک شمارهٔ یکنواخت می‌گیرد تا کلاینت بتواند دقیقاً همان ترتیب را بازپخش کند */
 export function pushEvent(state: GameState, ev: GameEvent): void {
+  state.eventSeq = (state.eventSeq ?? 0) + 1;
+  ev.n = state.eventSeq;
   state.events.push(ev);
   if (state.events.length > MAX_EVENTS) state.events.splice(0, state.events.length - MAX_EVENTS);
 }
@@ -54,7 +57,7 @@ export function playerById(state: GameState, id: string): Player | undefined {
   return state.players.find((p) => p.id === id);
 }
 
-/** بازیکنانی که هنوز در بازی هستند (رتبه نگرفته و اتاق را ترک نکرده‌اند) */
+/** بازیکنانی که هنوز در بازی هستند (رتبه نگرفته‌اند) */
 export function activePlayers(state: GameState): Player[] {
   return state.players.filter((p) => p.rank === null && p.status !== 'LEFT');
 }
@@ -137,6 +140,7 @@ export function createInitialState(input: NewRoomInput): GameState {
     turnStartedAt: now,
     deadlineAt: now,
     turnCount: 0,
+    eventSeq: 0,
     createdAt: now,
     startedAt: null,
     finishedAt: null,
@@ -171,9 +175,6 @@ export interface Occupant {
 export function buildOccupancy(state: GameState): Map<number, Occupant[]> {
   const map = new Map<number, Occupant[]>();
   for (const pl of state.players) {
-    if (pl.status === 'LEFT' && pl.rank === null) {
-      // مهره‌های بازیکن خارج‌شده هم روی تخته می‌مانند مگر ربات آن را اداره کند
-    }
     for (const tk of pl.tokens) {
       if (!isOnTrack(tk.p)) continue;
       const abs = toAbsolute(pl.color, tk.p);
@@ -234,7 +235,6 @@ function tryMove(
     }
   }
 
-  // بررسی مسیر عبور (بلوک حریف)
   if (!entering && rules.blocks.enabled && !rules.blocks.canBePassed) {
     for (let q = from + 1; q < to; q++) {
       if (!isOnTrack(q)) continue;
@@ -276,6 +276,7 @@ export function getLegalMoves(state: GameState, seat: number, dice: number): Mov
   const rules = getRules(state.rulesId);
   const player = seatPlayer(state, seat);
   if (!player || player.rank !== null) return [];
+  if (dice < 1) return [];
 
   const occ = buildOccupancy(state);
   const moves: Move[] = [];
@@ -377,7 +378,7 @@ export function checkGameOver(state: GameState, now: number): boolean {
 
   if (!over) return false;
 
-  for (const p of remaining) {
+  for (const p of state.players) {
     if (p.rank === null) {
       const ranked = state.players.filter((x) => x.rank !== null).length;
       p.rank = ranked + 1;
