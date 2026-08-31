@@ -1,6 +1,4 @@
-/* لودو استار — تاس سه‌بعدی + جایگاه تاس هر بازیکن + حرکت آرام مهره (نسخهٔ ۴ / مرحلهٔ ۵)
-   بدون تغییر در index.html و app.js
-   بخش ۱: تاس   بخش ۲: جلوه‌های گیم‌پلی   بخش ۳: جایگاه تاس بازیکنان */
+/* لودو استار — تاس سه‌بعدی + جلوه‌های حرکت (نسخهٔ ۵ — بدون پد روی لانه) */
 
 /* ================== بخش ۱ — تاس ================== */
 (function (global) {
@@ -25,21 +23,23 @@
 
   var CSS = [
     '#dice{position:relative!important;width:74px!important;height:74px!important;',
-    'perspective:560px!important;transform-style:preserve-3d!important;overflow:visible!important;background:none!important}',
-    '#dice .dice-raw{display:none!important}',
+    'perspective:560px!important;transform-style:preserve-3d!important;overflow:visible!important;',
+    'background:none!important;border:0!important;box-shadow:none!important}',
+    '#dice .dice-raw{opacity:0!important;position:absolute!important;left:0!important;top:0!important;',
+    'pointer-events:none!important}',
     '#dice .dice-shadow{position:absolute!important;left:50%!important;bottom:-4px!important;',
-    'width:58px!important;height:15px!important;border-radius:50%!important;',
+    'width:56px!important;height:14px!important;border-radius:50%!important;',
     'background:radial-gradient(ellipse at center,rgba(8,2,22,.55),rgba(8,2,22,0) 72%)!important;',
-    'transform:translateX(-50%)!important;filter:blur(1px);will-change:transform,opacity}',
-    '#diceCube{position:absolute!important;left:0!important;top:0!important;width:74px!important;height:74px!important;',
-    'transform-style:preserve-3d!important;will-change:transform}',
+    'transform:translateX(-50%)!important}',
+    '#diceCube{position:absolute!important;left:0!important;top:0!important;width:74px!important;',
+    'height:74px!important;transform-style:preserve-3d!important;will-change:transform}',
     '#diceCube .face{position:absolute!important;left:7px!important;top:7px!important;',
     'width:' + (H * 2) + 'px!important;height:' + (H * 2) + 'px!important;border-radius:13px!important;',
-    'box-sizing:border-box!important;padding:7px!important;',
-    'display:grid!important;grid-template-columns:repeat(3,1fr)!important;grid-template-rows:repeat(3,1fr)!important;',
+    'box-sizing:border-box!important;padding:7px!important;display:grid!important;',
+    'grid-template-columns:repeat(3,1fr)!important;grid-template-rows:repeat(3,1fr)!important;',
     'background:linear-gradient(150deg,#fffdf6 0%,#f1e8ff 52%,#cbb9ec 100%)!important;',
     'box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.92),inset 0 -7px 12px rgba(86,52,140,.28),',
-    '0 2px 6px rgba(12,3,30,.35)!important;backface-visibility:visible!important}',
+    '0 2px 6px rgba(12,3,30,.35)!important}',
     '#diceCube .face i{width:11px;height:11px;border-radius:50%;align-self:center;justify-self:center;',
     'background:radial-gradient(circle at 32% 28%,#7b4bb5,#280b47);',
     'box-shadow:inset 0 1px 1.5px rgba(255,255,255,.55),0 1px 1px rgba(0,0,0,.3)}',
@@ -49,42 +49,51 @@
     '#diceCube .fd{transform:rotateX(-90deg) translateZ(' + H + 'px)!important}',
     '#diceCube .fe{transform:rotateY(-90deg) translateZ(' + H + 'px)!important}',
     '#diceCube .ff{transform:rotateY(180deg) translateZ(' + H + 'px)!important}',
-    '#diceCube .fa i:nth-child(1){grid-area:2/2}',
-    '#diceCube .fb i:nth-child(1){grid-area:1/1}#diceCube .fb i:nth-child(2){grid-area:3/3}',
-    '#diceCube .fc i:nth-child(1){grid-area:1/1}#diceCube .fc i:nth-child(2){grid-area:2/2}',
-    '#diceCube .fc i:nth-child(3){grid-area:3/3}',
-    '#diceCube .fd i:nth-child(1){grid-area:1/1}#diceCube .fd i:nth-child(2){grid-area:1/3}',
-    '#diceCube .fd i:nth-child(3){grid-area:3/1}#diceCube .fd i:nth-child(4){grid-area:3/3}',
-    '#diceCube .fe i:nth-child(1){grid-area:1/1}#diceCube .fe i:nth-child(2){grid-area:1/3}',
-    '#diceCube .fe i:nth-child(3){grid-area:2/2}#diceCube .fe i:nth-child(4){grid-area:3/1}',
-    '#diceCube .fe i:nth-child(5){grid-area:3/3}',
-    '#diceCube .ff i:nth-child(1){grid-area:1/1}#diceCube .ff i:nth-child(2){grid-area:1/3}',
-    '#diceCube .ff i:nth-child(3){grid-area:2/1}#diceCube .ff i:nth-child(4){grid-area:2/3}',
-    '#diceCube .ff i:nth-child(5){grid-area:3/1}#diceCube .ff i:nth-child(6){grid-area:3/3}',
-    '#dice.lb-ready::after{content:"";position:absolute;inset:-12px;border-radius:26px;pointer-events:none;',
-    'background:radial-gradient(circle,rgba(255,214,107,.42),rgba(255,214,107,0) 68%);animation:lbPulse 1.25s ease-in-out infinite}',
+    '#dice.lb-ready::after{content:"";position:absolute;inset:-12px;border-radius:26px;',
+    'pointer-events:none;background:radial-gradient(circle,rgba(255,214,107,.42),rgba(255,214,107,0) 68%);',
+    'animation:lbPulse 1.25s ease-in-out infinite}',
     '@keyframes lbPulse{0%,100%{opacity:.35;transform:scale(.94)}50%{opacity:.9;transform:scale(1.06)}}',
     '#dice.lb-land .face{box-shadow:inset 0 0 0 1.5px #fff,0 0 16px 4px rgba(255,214,107,.85)!important}',
-    '.btn,.icon-btn,.row-btn,.ls-mode,.ls-sub,.ls-nav-btn{transition:transform .09s ease}',
-    '.btn:active,.icon-btn:active,.row-btn:active,.ls-mode:active,.ls-sub:active,.ls-nav-btn:active{transform:scale(.94)}'
+    '.btn:active,.icon-btn:active,.row-btn:active{transform:scale(.95)}'
   ].join('');
 
   function injectCss() {
-    if ($('lb-dice-style')) return;
-    var st = D.createElement('style');
+    var st = $('lb-dice-style');
+    if (st) { st.textContent = CSS; return; }
+    st = D.createElement('style');
     st.id = 'lb-dice-style';
     st.textContent = CSS;
     (D.head || D.documentElement).appendChild(st);
   }
 
-  var FACE = {
-    1: { rx: 0, ry: 0 }, 2: { rx: 0, ry: -90 }, 3: { rx: -90, ry: 0 },
-    4: { rx: 90, ry: 0 }, 5: { rx: 0, ry: 90 }, 6: { rx: 0, ry: 180 }
-  };
+  var PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
 
-  var SEGS = [[70, 380], [33, 280], [14, 210], [6, 150], [0, 260]];
-  var TOTAL = 1280, LOCK = 880;
+  function faceHtml(cls, num) {
+    var s = '<div class="face ' + cls + '">', i;
+    for (i = 0; i < 9; i++) s += (PIPS[num].indexOf(i) !== -1) ? '<i></i>' : '<span></span>';
+    return s + '</div>';
+  }
 
+  function build() {
+    var dice = $('dice');
+    if (!dice || $('diceCube')) return;
+    var val = $('diceValue');
+    if (val) val.classList.add('dice-raw');
+    var sh = D.createElement('div');
+    sh.className = 'dice-shadow';
+    dice.appendChild(sh);
+    var cube = D.createElement('div');
+    cube.id = 'diceCube';
+    cube.innerHTML = faceHtml('fa', 1) + faceHtml('fb', 2) + faceHtml('fc', 3) +
+                     faceHtml('fd', 4) + faceHtml('fe', 5) + faceHtml('ff', 6);
+    dice.appendChild(cube);
+  }
+
+  var FACE = { 1: { rx: 0, ry: 0 }, 2: { rx: 0, ry: -90 }, 3: { rx: -90, ry: 0 },
+               4: { rx: 90, ry: 0 }, 5: { rx: 0, ry: 90 }, 6: { rx: 0, ry: 180 } };
+
+  var SEGS = [[72, 340], [34, 250], [15, 190], [6, 130], [0, 240]];
+  var TOTAL = 1150, LOCK = 780;
   var busy = false, pending = null, raf = 0, lastValue = 1;
 
   function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
@@ -99,31 +108,29 @@
   function setCube(x, h, rx, ry, rz, sq) {
     var cube = $('diceCube');
     if (!cube) return;
-    cube.style.transform =
-      'translate3d(' + x.toFixed(1) + 'px,' + (-h).toFixed(1) + 'px,0) ' +
+    cube.style.transform = 'translate3d(' + x.toFixed(1) + 'px,' + (-h).toFixed(1) + 'px,0) ' +
       'rotateX(' + rx.toFixed(1) + 'deg) rotateY(' + ry.toFixed(1) + 'deg) rotateZ(' + rz.toFixed(1) + 'deg) ' +
       'scale3d(' + (1 / sq).toFixed(3) + ',' + sq.toFixed(3) + ',1)';
-    var sh = D.querySelector('#dice .dice-shadow');
-    if (sh) {
+    var shn = D.querySelector('#dice .dice-shadow');
+    if (shn) {
       var k = Math.max(0.35, 1 - h / 110);
-      sh.style.transform = 'translateX(-50%) translateX(' + (x * 0.55).toFixed(1) + 'px) scale(' + k.toFixed(2) + ')';
-      sh.style.opacity = String(Math.max(0.2, k));
+      shn.style.transform = 'translateX(-50%) translateX(' + (x * 0.55).toFixed(1) + 'px) scale(' + k.toFixed(2) + ')';
+      shn.style.opacity = String(Math.max(0.2, k));
     }
   }
 
   function roll(value) {
-    injectCss();
+    injectCss(); build();
     var dice = $('dice');
     if (!dice) return;
     if (busy) { pending = value || 0; return; }
     busy = true;
 
-    var startX = -30 - Math.random() * 14;
+    var startX = -34 - Math.random() * 16;
     var freeX = 360 * 3 + 180, freeY = 360 * 2 + 90, freeZ = 360 * 2;
     var locked = null, segIdx = -1, t0 = 0;
 
-    A('dice_roll');
-    haptic('medium');
+    A('dice_roll'); haptic('medium');
     dice.classList.remove('lb-land');
 
     function frame(now) {
@@ -145,7 +152,7 @@
       }
       if (idx > segIdx) {
         if (segIdx >= 0 && SEGS[segIdx][0] > 0) {
-          A('dice_bounce', { strength: Math.min(1, SEGS[segIdx][0] / 70) });
+          A('dice_bounce', { strength: Math.min(1, SEGS[segIdx][0] / 72) });
           haptic('light');
         }
         segIdx = idx;
@@ -180,13 +187,14 @@
 
       if (el < TOTAL) { raf = requestAnimationFrame(frame); return; }
 
-      A('dice_settle');
-      haptic('success');
+      A('dice_settle'); haptic('success');
       dice.classList.add('lb-land');
-      setTimeout(function () { dice.classList.remove('lb-land'); }, 480);
-
+      setTimeout(function () { dice.classList.remove('lb-land'); }, 420);
       busy = false;
-      if (pending !== null) { var nx = pending; pending = null; setTimeout(function () { roll(nx); }, 240); }
+      if (pending !== null) {
+        var nx = pending; pending = null;
+        setTimeout(function () { roll(nx); }, 220);
+      }
     }
 
     if (raf) cancelAnimationFrame(raf);
@@ -212,40 +220,30 @@
     if (!btn) return;
     btn.addEventListener('click', function () {
       if (global.LudoAudio) { try { global.LudoAudio.unlock(); } catch (e) { } }
-      A('button_click');
-      haptic('select');
+      A('button_click'); haptic('select');
     });
-    if (global.MutationObserver) {
-      var sync = function () {
-        var dice = $('dice');
-        var ready = !btn.disabled;
-        if (dice) dice.classList.toggle('lb-ready', ready);
-        var fr = D.querySelector('.board-frame');
-        if (fr) fr.classList.toggle('lb-myturn', ready);
-      };
-      new MutationObserver(sync).observe(btn, { attributes: true, attributeFilter: ['class', 'disabled'] });
-      sync();
-    }
+    if (!global.MutationObserver) return;
+    var sync = function () {
+      var dice = $('dice');
+      var ready = !btn.disabled && btn.classList.contains('ready');
+      if (dice) dice.classList.toggle('lb-ready', ready);
+    };
+    new MutationObserver(sync).observe(btn, { attributes: true, attributeFilter: ['class', 'disabled'] });
+    sync();
   }
 
   function bridgeSounds() {
     if (!global.MutationObserver) return;
-
     var tn = $('turnName');
-    if (tn) {
-      new MutationObserver(function () { A('turn_change', { throttle: 500 }); })
-        .observe(tn, { childList: true, characterData: true, subtree: true });
-    }
+    if (tn) new MutationObserver(function () { A('turn_change', { throttle: 500 }); })
+      .observe(tn, { childList: true, characterData: true, subtree: true });
 
     var over = $('overScreen');
-    if (over) {
-      new MutationObserver(function () {
-        if (over.classList.contains('hidden')) return;
-        var t = ($('overTitle') && $('overTitle').textContent) || '';
-        if (t.indexOf('بردی') !== -1) { A('victory'); haptic('success'); }
-        else A('defeat');
-      }).observe(over, { attributes: true, attributeFilter: ['class'] });
-    }
+    if (over) new MutationObserver(function () {
+      if (over.classList.contains('hidden')) return;
+      var t = ($('overTitle') && $('overTitle').textContent) || '';
+      if (t.indexOf('بردی') !== -1) { A('victory'); haptic('success'); } else A('defeat');
+    }).observe(over, { attributes: true, attributeFilter: ['class'] });
 
     setInterval(function () {
       var g = $('gameScreen'), f = $('timerFill');
@@ -253,17 +251,6 @@
       if (f.classList.contains('critical')) A('countdown', { urgent: true, throttle: 900 });
       else if (f.classList.contains('low')) A('countdown', { throttle: 1900 });
     }, 500);
-
-    D.addEventListener('click', function (ev) {
-      var t = ev.target;
-      while (t && t !== D.body) {
-        if (t.tagName === 'BUTTON') {
-          if (t.id !== 'btnRoll') A('button_click', { throttle: 60 });
-          return;
-        }
-        t = t.parentNode;
-      }
-    }, true);
   }
 
   function bridgeSetting() {
@@ -288,23 +275,19 @@
   }
 
   function start() {
-    injectCss();
+    injectCss(); build();
     setCube(0, 0, -18, 24, 0, 1);
-    watchDice();
-    watchRollButton();
-    bridgeSounds();
-    bridgeSetting();
-    unlockOnce();
+    watchDice(); watchRollButton(); bridgeSounds(); bridgeSetting(); unlockOnce();
   }
 
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', start);
   else start();
 
-  global.LudoDice = { roll: roll, throwTo: roll, isBusy: function () { return busy; } };
+  global.LudoDice = { roll: roll, throwTo: roll };
 })(window);
 
 
-/* ================== بخش ۲ — جلوه‌ها و حرکت آرام مهره ================== */
+/* ================== بخش ۲ — جلوه‌های حرکت مهره ================== */
 (function (global) {
   'use strict';
 
@@ -313,35 +296,23 @@
   function A(n, o) { if (global.LudoAudio) { try { global.LudoAudio.play(n, o); } catch (e) { } } }
   function haptic(k) { if (global.LudoHaptic) global.LudoHaptic(k); }
 
-  var B = null, LOOKUP = {};
-
-  /* سرعت‌ها — برای کندتر/تندتر کردن همین سه عدد را تغییر بده */
-  var STEP_MS = 200;        // مدت هر خانه
-  var STEP_GAP = 30;        // توقف کوتاه بین خانه‌ها
-  var CAPTURE_MS = 760;     // پرتاب مهرهٔ زده‌شده
-  var EXIT_MS = 430;        // خروج از خانه
+  var B = null;
+  var STEP_MS = 190, STEP_GAP = 45, CAPTURE_MS = 760, EXIT_MS = 540;
 
   var CSS = [
-    '.tokens-layer .token{will-change:left,top,transform}',
-    '.token.lb-squash{transform:scale(1.14,.86)!important;transition:transform .11s ease-out!important}',
-    '.token.lb-fly{z-index:14!important;transition:none!important;filter:drop-shadow(0 7px 9px rgba(6,1,18,.6))}',
-    '.token.lb-walk{z-index:9!important;transition:none!important}',
-    '.token.lb-fin{animation:lbFin 1.05s cubic-bezier(.2,.9,.3,1.2)}',
-    '@keyframes lbFin{0%{transform:none}35%{transform:scale(1.3);filter:drop-shadow(0 0 17px rgba(255,222,120,.95)) brightness(1.55)}',
-    '100%{transform:none;filter:none}}',
-    '.lb-ring{position:absolute;width:24%;height:24%;margin:-12% 0 0 -12%;border-radius:50%;',
-    'border:3px solid rgba(255,255,255,.92);pointer-events:none;animation:lbRing .6s ease-out forwards}',
-    '@keyframes lbRing{0%{transform:scale(.18);opacity:1}100%{transform:scale(1.8);opacity:0}}',
-    '.lb-glow{position:absolute;width:34%;height:34%;margin:-17% 0 0 -17%;border-radius:50%;pointer-events:none;',
-    'background:radial-gradient(circle,rgba(255,226,132,.85),rgba(255,196,60,0) 70%);animation:lbGlow 1s ease-out forwards}',
-    '@keyframes lbGlow{0%{transform:scale(.3);opacity:0}30%{transform:scale(1);opacity:1}100%{transform:scale(1.5);opacity:0}}',
-    '.lb-spark{position:absolute;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;',
-    'pointer-events:none;will-change:transform,opacity}',
-    '.lb-shake{animation:lbShake .38s ease-in-out}',
-    '@keyframes lbShake{0%,100%{transform:translate(0,0)}20%{transform:translate(-6px,3px)}',
-    '45%{transform:translate(5px,-4px)}70%{transform:translate(-4px,-2px)}}',
-    '#lbConfetti{position:fixed;left:0;top:0;width:100%;height:100%;z-index:120;pointer-events:none}',
-    '.board-frame.lb-myturn{box-shadow:0 0 0 2px rgba(255,214,107,.75),0 0 28px 7px rgba(255,214,107,.32)!important}'
+    '.lb-spark{position:absolute;width:7px;height:7px;border-radius:50%;margin:-3.5px 0 0 -3.5px;',
+    'pointer-events:none;z-index:9}',
+    '.lb-ring{position:absolute;width:16%;height:16%;margin:-8% 0 0 -8%;border-radius:50%;',
+    'border:3px solid rgba(255,255,255,.95);animation:lbRing .8s ease-out forwards;pointer-events:none}',
+    '@keyframes lbRing{0%{opacity:1;transform:scale(.3)}100%{opacity:0;transform:scale(2.4)}}',
+    '.lb-glow{position:absolute;width:18%;height:18%;margin:-9% 0 0 -9%;border-radius:50%;',
+    'background:radial-gradient(circle,rgba(255,232,150,.9),rgba(255,214,107,0) 70%);',
+    'animation:lbGlowFx .95s ease-out forwards;pointer-events:none}',
+    '@keyframes lbGlowFx{0%{opacity:0;transform:scale(.4)}35%{opacity:1}100%{opacity:0;transform:scale(1.8)}}',
+    '.board-frame.lb-shake{animation:lbShake .38s ease-in-out}',
+    '@keyframes lbShake{0%,100%{transform:translate(0,0)}20%{transform:translate(-4px,2px)}',
+    '45%{transform:translate(4px,-2px)}70%{transform:translate(-2px,1px)}}',
+    '#lbConfetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999}'
   ].join('');
 
   function injectCss() {
@@ -352,36 +323,45 @@
     (D.head || D.documentElement).appendChild(st);
   }
 
+  var LK = {};
   function buildLookup() {
     B.COLORS.forEach(function (c) {
-      var arr = [];
-      for (var p = -1; p <= B.POS_FINISH; p++) {
-        var lim = (p === B.POS_BASE) ? 4 : 1;
-        for (var i = 0; i < lim; i++) {
-          var cell = B.cellOf(c, p, i);
-          if (cell) arr.push({ p: p, i: i, x: cell.x, y: cell.y });
-        }
+      var arr = [], i, p;
+      for (i = 0; i < 4; i++) {
+        var s = B.BASE_SLOTS[c][i];
+        arr.push({ x: s.x, y: s.y, p: B.POS_BASE, i: i });
       }
-      LOOKUP[c] = arr;
+      for (p = 0; p <= B.LAST_TRACK; p++) {
+        var t = B.cellOf(c, p, 0);
+        arr.push({ x: t.x, y: t.y, p: p, i: 0 });
+      }
+      for (p = B.HOME_ENTRY; p < B.POS_FINISH; p++) {
+        var h = B.cellOf(c, p, 0);
+        arr.push({ x: h.x, y: h.y, p: p, i: 0 });
+      }
+      var f = B.cellOf(c, B.POS_FINISH, 0);
+      arr.push({ x: f.x, y: f.y, p: B.POS_FINISH, i: 0 });
+      LK[c] = arr;
     });
   }
 
   function nearest(color, cell) {
-    var arr = LOOKUP[color];
-    if (!arr || !cell) return null;
-    var best = null, bd = 1e9;
-    for (var k = 0; k < arr.length; k++) {
-      var dx = arr[k].x - cell.x, dy = arr[k].y - cell.y, d = dx * dx + dy * dy;
-      if (d < bd) { bd = d; best = arr[k]; }
+    var a = LK[color];
+    if (!a) return null;
+    var best = null, bd = 1e9, i, dx, dy, d;
+    for (i = 0; i < a.length; i++) {
+      dx = a[i].x - cell.x; dy = a[i].y - cell.y; d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; best = a[i]; }
     }
-    return (bd <= 1.2) ? best : null;
+    return bd <= 2.5 ? best : null;
   }
 
-  function cellFromStyle(el) {
-    var l = parseFloat(el.style.left), t = parseFloat(el.style.top);
-    if (isNaN(l) || isNaN(t)) return null;
-    var u = 100 / B.GRID;
-    return { x: l / u - 0.5, y: t / u - 0.5 };
+  function colorOf(el) {
+    var cn = ' ' + el.className + ' ';
+    for (var i = 0; i < B.COLORS.length; i++) {
+      if (cn.indexOf(' ' + B.COLORS[i] + ' ') !== -1) return B.COLORS[i];
+    }
+    return null;
   }
 
   function put(el, cell) {
@@ -390,65 +370,45 @@
     el.style.top = pos.top + '%';
   }
 
-  function colorOf(el) {
-    var cn = ' ' + el.className + ' ';
-    for (var i = 0; i < B.COLORS.length; i++) if (cn.indexOf(' ' + B.COLORS[i] + ' ') !== -1) return B.COLORS[i];
-    return null;
+  function cellFromStyle(el) {
+    var l = parseFloat(el.style.left), t = parseFloat(el.style.top);
+    if (isNaN(l) || isNaN(t)) return null;
+    var unit = 100 / B.GRID;
+    return { x: l / unit - 0.5, y: t / unit - 0.5 };
   }
 
-  function release(el, oldTr) {
-    el.style.transform = '';
-    el.classList.remove('lb-walk', 'lb-fly');
-    el.classList.add('lb-squash');
-    setTimeout(function () {
-      el.classList.remove('lb-squash');
-      el.style.transition = oldTr;
-      el.__lbBusy = false;
-      el.__lbCell = cellFromStyle(el);
-    }, 120);
+  function release(el, oldTr, cell) {
+    put(el, cell);
+    el.style.transition = oldTr || '';
+    el.__lbCell = cell;
+    setTimeout(function () { el.__lbBusy = false; }, 40);
   }
 
-  /* ---------- راه‌رفتن خانه‌به‌خانه، آرام و نرم ---------- */
-  function walk(el, color, fromP, toP, slot) {
-    var n = toP - fromP;
-    if (n <= 0) return;
-
-    var cells = [], j;
-    for (j = 0; j <= n; j++) {
-      var c = B.cellOf(color, fromP + j, slot);
-      cells.push(c || cells[cells.length - 1]);
-    }
-
+  function walk(el, color, fromP, toP, finalCell) {
     el.__lbBusy = true;
     var oldTr = el.style.transition;
     el.style.transition = 'none';
-    el.classList.add('lb-walk');
 
-    j = 0;
+    var seq = [], p;
+    for (p = fromP + 1; p <= toP; p++) seq.push(B.cellOf(color, p, 0));
+    if (!seq.length) { release(el, oldTr, finalCell); return; }
+    seq[seq.length - 1] = finalCell;
+
+    var idx = 0, cur = B.cellOf(color, fromP, 0);
+
     function seg() {
-      j++;
-      if (j > n) {
-        release(el, oldTr);
-        haptic('light');
-        if (toP >= B.HOME_ENTRY + 5 || toP >= B.POS_FINISH) {
-          el.classList.add('lb-fin');
-          setTimeout(function () { el.classList.remove('lb-fin'); }, 1050);
-        }
-        return;
-      }
-
-      var a = cells[j - 1], b = cells[j], t0 = 0;
-      A('token_move', { step: j, total: n });
+      if (idx >= seq.length) { haptic('light'); release(el, oldTr, finalCell); return; }
+      var a = cur, b = seq[idx], t0 = 0;
+      A('token_move', { step: idx + 1, total: seq.length });
 
       function fr(now) {
         if (!t0) t0 = now;
         var t = Math.min(1, (now - t0) / STEP_MS);
         var e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-        var lift = 0.32 * Math.sin(Math.PI * t);
+        var lift = 0.3 * Math.sin(Math.PI * t);
         put(el, { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e - lift });
-        el.style.transform = 'scale(' + (1 + 0.12 * Math.sin(Math.PI * t)).toFixed(3) + ')';
         if (t < 1) { requestAnimationFrame(fr); return; }
-        el.style.transform = '';
+        cur = b; idx++;
         setTimeout(seg, STEP_GAP);
       }
       requestAnimationFrame(fr);
@@ -456,12 +416,10 @@
     seg();
   }
 
-  /* ---------- پرتاب قوسی ---------- */
   function arc(el, fromCell, toCell, dur, spin) {
     el.__lbBusy = true;
     var oldTr = el.style.transition;
     el.style.transition = 'none';
-    el.classList.add('lb-fly');
     var t0 = 0, lift = spin ? 2.4 : 1.2;
 
     function frame(now) {
@@ -472,10 +430,9 @@
         x: fromCell.x + (toCell.x - fromCell.x) * e,
         y: fromCell.y + (toCell.y - fromCell.y) * e - 4 * lift * t * (1 - t)
       });
-      if (spin) el.style.transform = 'rotate(' + (t * 720).toFixed(0) + 'deg) scale(' + (1 + 0.28 * Math.sin(Math.PI * t)).toFixed(2) + ')';
       if (t < 1) { requestAnimationFrame(frame); return; }
       haptic(spin ? 'heavy' : 'light');
-      release(el, oldTr);
+      release(el, oldTr, toCell);
     }
     requestAnimationFrame(frame);
   }
@@ -511,9 +468,9 @@
           arc(el, was, now, EXIT_MS, false);
         } else if (b.p > a.p && b.p - a.p <= 6) {
           put(el, was);
-          walk(el, color, a.p, b.p, b.i);
+          walk(el, color, a.p, b.p, now);
         } else {
-          arc(el, was, now, 480, false);
+          arc(el, was, now, 520, false);
         }
       }
     }).observe(layer, { attributes: true, attributeFilter: ['style'], subtree: true });
@@ -634,135 +591,6 @@
     B = global.LudoBoard;
     if (!B || !B.cellOf) { setTimeout(start, 250); return; }
     injectCss(); buildLookup(); watchTokens(); watchFx(); watchVictory();
-  }
-
-  if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', start);
-  else start();
-})(window);
-
-
-/* ================== بخش ۳ — جایگاه تاس هر بازیکن ================== */
-(function (global) {
-  'use strict';
-
-  var D = global.document;
-  function $(id) { return D.getElementById(id); }
-
-  var COLORS = ['RED', 'GREEN', 'YELLOW', 'BLUE'];
-  var SPOT = {                        // مرکز خانهٔ هر رنگ روی تخته
-    RED: { l: 22, t: 22 }, GREEN: { l: 78, t: 22 },
-    YELLOW: { l: 78, t: 78 }, BLUE: { l: 22, t: 78 }
-  };
-  var TINT = { RED: '#f2314c', GREEN: '#22c07d', YELLOW: '#ffc32e', BLUE: '#3b9bff' };
-
-  var CSS = [
-    '.lb-pad{position:absolute;width:23%;height:23%;margin:-11.5% 0 0 -11.5%;z-index:13;',
-    'display:flex;align-items:center;justify-content:center;border-radius:22px;',
-    'pointer-events:none;opacity:0;transition:opacity .25s ease,transform .25s ease;transform:scale(.86)}',
-    '.lb-pad.live{opacity:1;transform:scale(1)}',
-    '.lb-pad::before{content:"";position:absolute;inset:6%;border-radius:20px;',
-    'background:rgba(10,3,26,.34);border:2px solid rgba(255,255,255,.18);',
-    'box-shadow:inset 0 2px 8px rgba(0,0,0,.35)}',
-    '.lb-pad.turn{pointer-events:auto}',
-    '.lb-pad.turn::before{border-color:var(--lbTint);box-shadow:0 0 16px 3px var(--lbTint),inset 0 2px 8px rgba(0,0,0,.3);',
-    'animation:lbPadPulse 1.3s ease-in-out infinite}',
-    '@keyframes lbPadPulse{0%,100%{opacity:.72}50%{opacity:1}}',
-    '.lb-pad .lb-mini{width:34%;height:34%;border-radius:8px;',
-    'background:linear-gradient(150deg,#fffdf6,#cbb9ec);opacity:.42;box-shadow:0 2px 5px rgba(0,0,0,.35)}',
-    '.lb-pad.turn .lb-mini{display:none}',
-    '#dice.lb-onboard{transform:scale(.58);z-index:14}',
-    '#lbDiceSlot{width:74px;height:74px;opacity:0;pointer-events:none}'
-  ].join('');
-
-  function injectCss() {
-    if ($('lb-pad-style')) return;
-    var st = D.createElement('style');
-    st.id = 'lb-pad-style';
-    st.textContent = CSS;
-    (D.head || D.documentElement).appendChild(st);
-  }
-
-  var pads = {}, moving = false;
-
-  function buildPads() {
-    var board = $('board');
-    if (!board || pads.RED) return;
-    COLORS.forEach(function (c) {
-      var p = D.createElement('div');
-      p.className = 'lb-pad ' + c;
-      p.style.left = SPOT[c].l + '%';
-      p.style.top = SPOT[c].t + '%';
-      p.style.setProperty('--lbTint', TINT[c]);
-      p.innerHTML = '<div class="lb-mini"></div>';
-      p.addEventListener('click', function () {
-        var btn = $('btnRoll');
-        if (btn && !btn.disabled) btn.click();
-      });
-      board.appendChild(p);
-      pads[c] = p;
-    });
-
-    var area = D.querySelector('.dice-area');
-    if (area && !$('lbDiceSlot')) {
-      var slot = D.createElement('div');
-      slot.id = 'lbDiceSlot';
-      area.insertBefore(slot, area.firstChild);
-    }
-  }
-
-  function activeColor() {
-    var d = D.querySelector('#playersStrip .pstrip.active .dot');
-    if (!d) return null;
-    var cn = ' ' + d.className + ' ';
-    for (var i = 0; i < COLORS.length; i++) if (cn.indexOf(' ' + COLORS[i] + ' ') !== -1) return COLORS[i];
-    return null;
-  }
-
-  function presentColors() {
-    var out = {}, dots = D.querySelectorAll('#playersStrip .pstrip .dot');
-    for (var i = 0; i < dots.length; i++) {
-      var cn = ' ' + dots[i].className + ' ';
-      for (var k = 0; k < COLORS.length; k++) if (cn.indexOf(' ' + COLORS[k] + ' ') !== -1) out[COLORS[k]] = true;
-    }
-    return out;
-  }
-
-  function sync() {
-    buildPads();
-    if (!pads.RED) return;
-
-    var here = presentColors();
-    var act = activeColor();
-
-    COLORS.forEach(function (c) {
-      pads[c].classList.toggle('live', !!here[c]);
-      pads[c].classList.toggle('turn', c === act);
-    });
-
-    if (!act) return;
-    var dice = $('dice');
-    if (!dice) return;
-
-    if (dice.parentNode === pads[act]) return;
-    if (global.LudoDice && global.LudoDice.isBusy && global.LudoDice.isBusy()) {
-      if (!moving) { moving = true; setTimeout(function () { moving = false; sync(); }, 400); }
-      return;
-    }
-
-    dice.classList.add('lb-onboard');
-    pads[act].appendChild(dice);
-  }
-
-  function start() {
-    injectCss();
-    buildPads();
-    var strip = $('playersStrip');
-    if (strip && global.MutationObserver) {
-      new MutationObserver(function () { sync(); })
-        .observe(strip, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
-    }
-    setInterval(sync, 900);
-    sync();
   }
 
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', start);
